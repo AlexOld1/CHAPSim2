@@ -1241,48 +1241,48 @@ contains
 !----------------------------------------------------------------------------------------------------------
 ! A patch for outlet sponge layer: X-mom diffusion term at (i', j, k)
 !----------------------------------------------------------------------------------------------------------
-    if(dm%outlet_sponge_layer(1) > MINP) then
-      !--------------------------------       
-      ! diff-y-m1-sponge = 1/r * mu_sponge * d(r * qxdy)/dy
-      !------bulk------      
-      appc_ypencil = qxdy_ppc_ypencil
-      if(dm%icoordinate == ICYLINDRICAL) &
-      call multiple_cylindrical_rn(appc_ypencil, dm%dppc, dm%rp, 1, IPENCIL(2))
-      !------b.c.------
-      if(is_fbcy_velo_required) then
-        call extract_dirichlet_fbcy(fbcy_p4c, appc_ypencil, dm%dppc, dm, is_reversed = .true.)
-      else
-        fbcy_p4c = MAXP
-      end if
-      !------PDE------
-      call Get_y_1der_P2C_3D(appc_ypencil, apcc_ypencil1, dm, dm%iAccuracy, mbcy_tau1, fbcy_p4c)
-      if(dm%icoordinate == ICYLINDRICAL) &
-      call multiple_cylindrical_rn(apcc_ypencil1, dm%dpcc, dm%rci, 1, IPENCIL(2))
-      !--------------------------------       
-      ! diff-z-m1-sponge = 1/r * mu_sponge * d(1/r * qxdz)/dz
-      !------bulk------
-      apcp_zpencil = qxdz_pcp_zpencil
-      if(dm%icoordinate == ICYLINDRICAL) &
-      call multiple_cylindrical_rn(apcp_zpencil, dm%dpcp, dm%rci, 1, IPENCIL(3))
-      !------b.c.------
-      if(is_fbcz_velo_required) then
-        call extract_dirichlet_fbcz(fbcz_pc4, apcp_zpencil, dm%dpcp)
-      else
-        fbcz_pc4 = MAXP
-      end if
-      !------PDE------
-      call Get_z_1der_P2C_3D(apcp_zpencil, apcc_zpencil, dm, dm%iAccuracy, mbcz_tau1, fbcz_pc4)
-      if(dm%icoordinate == ICYLINDRICAL) &
-      call multiple_cylindrical_rn(apcc_zpencil, dm%dpcc, dm%rci, 1, IPENCIL(3))
-      !------two terms ------
-      call transpose_z_to_y(apcc_zpencil, apcc_ypencil, dm%dpcc)
-      apcc_ypencil = apcc_ypencil + apcc_ypencil1
-      call transpose_y_to_x(apcc_ypencil, apcc_xpencil, dm%dpcc)
-      do i = 1, dm%dpcc%xsz(1)
-        apcc_xpencil(i, :, :) = fl%rre_sponge_p(i) * apcc_xpencil(i, :, :)
-      end do
-      fl%mx_rhs =  fl%mx_rhs + apcc_xpencil
-    end if
+    ! if(dm%outlet_sponge_layer(1) > MINP) then
+    !   !--------------------------------       
+    !   ! diff-y-m1-sponge = 1/r * mu_sponge * d(r * qxdy)/dy
+    !   !------bulk------      
+    !   appc_ypencil = qxdy_ppc_ypencil
+    !   if(dm%icoordinate == ICYLINDRICAL) &
+    !   call multiple_cylindrical_rn(appc_ypencil, dm%dppc, dm%rp, 1, IPENCIL(2))
+    !   !------b.c.------
+    !   if(is_fbcy_velo_required) then
+    !     call extract_dirichlet_fbcy(fbcy_p4c, appc_ypencil, dm%dppc, dm, is_reversed = .true.)
+    !   else
+    !     fbcy_p4c = MAXP
+    !   end if
+    !   !------PDE------
+    !   call Get_y_1der_P2C_3D(appc_ypencil, apcc_ypencil1, dm, dm%iAccuracy, mbcy_tau1, fbcy_p4c)
+    !   if(dm%icoordinate == ICYLINDRICAL) &
+    !   call multiple_cylindrical_rn(apcc_ypencil1, dm%dpcc, dm%rci, 1, IPENCIL(2))
+    !   !--------------------------------       
+    !   ! diff-z-m1-sponge = 1/r * mu_sponge * d(1/r * qxdz)/dz
+    !   !------bulk------
+    !   apcp_zpencil = qxdz_pcp_zpencil
+    !   if(dm%icoordinate == ICYLINDRICAL) &
+    !   call multiple_cylindrical_rn(apcp_zpencil, dm%dpcp, dm%rci, 1, IPENCIL(3))
+    !   !------b.c.------
+    !   if(is_fbcz_velo_required) then
+    !     call extract_dirichlet_fbcz(fbcz_pc4, apcp_zpencil, dm%dpcp)
+    !   else
+    !     fbcz_pc4 = MAXP
+    !   end if
+    !   !------PDE------
+    !   call Get_z_1der_P2C_3D(apcp_zpencil, apcc_zpencil, dm, dm%iAccuracy, mbcz_tau1, fbcz_pc4)
+    !   if(dm%icoordinate == ICYLINDRICAL) &
+    !   call multiple_cylindrical_rn(apcc_zpencil, dm%dpcc, dm%rci, 1, IPENCIL(3))
+    !   !------two terms ------
+    !   call transpose_z_to_y(apcc_zpencil, apcc_ypencil, dm%dpcc)
+    !   apcc_ypencil = apcc_ypencil + apcc_ypencil1
+    !   call transpose_y_to_x(apcc_ypencil, apcc_xpencil, dm%dpcc)
+    !   do i = 1, dm%dpcc%xsz(1)
+    !     apcc_xpencil(i, :, :) = fl%rre_sponge_p(i) * apcc_xpencil(i, :, :)
+    !   end do
+    !   fl%mx_rhs =  fl%mx_rhs + apcc_xpencil
+    ! end if
 !==========================================================================================================
 ! the RHS of y-momentum equation
 ! d(gy)/dt = -        d(gxiy * qyix)/dx                             ! conv-x-m2         
