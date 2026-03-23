@@ -61,6 +61,8 @@ contains
 !----------------------------------------------------------------------------------------------------------
 !   force: calculate in z-pencil
 !----------------------------------------------------------------------------------------------------------
+    fr_cpp_zpencil = ZERO
+    ft_cpp_zpencil = ZERO
     if(iforce == 2 .or. iforce == -2) then
       acpp_zpencil = acpp_zpencil * fgravity
 
