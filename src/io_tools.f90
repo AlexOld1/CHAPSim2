@@ -57,15 +57,33 @@ contains
     integer, intent(in) :: iter
 
     character(256):: field_file
+    logical :: ex
+    character(len=:), allocatable :: bak_file
 
     call generate_pathfile_name(field_file, idom, trim(field_name), dir_data, 'bin', iter)
-    !if(present(opt_flname)) opt_flname = field_file
-    if(.not.file_exists(field_file)) &
+    !call rename_existing_file(trim(field_file))
+    if(.not. file_exists(trim(field_file))) &
     call decomp_2d_write_one(IPENCIL(1), var, trim(field_file), opt_decomp=dtmp)
 
     return
   end subroutine
-
+!==========================================================================================================
+  subroutine rename_existing_file(file_w_path)
+    implicit none
+    character(*), intent(in) :: file_w_path
+    character(256) :: bak_file
+    logical :: ex
+    !
+    ex = file_exists(trim(file_w_path))
+    if(nrank == 0 .and. ex) then
+      bak_file = trim(file_w_path)//'.bak'
+      if (file_exists(trim(bak_file))) then
+        call execute_command_line('rm -f ' // trim(bak_file))
+      end if
+      call execute_command_line('mv ' // trim(file_w_path) // ' ' // trim(bak_file))
+    end if
+    return
+  end subroutine rename_existing_file
   !==========================================================================================================
 
   

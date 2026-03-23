@@ -854,6 +854,7 @@ contains
         read(inputUnit, *, iostat = ioerr) varname, domain(1 : nxdomain)%visu_nfre
         read(inputUnit, *, iostat = ioerr) varname, domain(1)%visu_nskip(1:3)
         read(inputUnit, *, iostat = ioerr) varname, domain(1 : nxdomain)%stat_istart
+        read(inputUnit, *, iostat = ioerr) varname, domain(1)%stat_level
         read(inputUnit, *, iostat = ioerr) varname, domain(1)%stat_nskip(1:3)
         read(inputUnit, *, iostat = ioerr) varname, domain(1)%is_record_xoutlet, domain(1)%is_read_xinlet
         read(inputUnit, *, iostat = ioerr) varname, domain(1)%ndbfre, domain(1)%ndbstart, domain(1)%ndbend

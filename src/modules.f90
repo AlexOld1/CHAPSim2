@@ -297,6 +297,12 @@ module parameters_constant_mod
                         ILIQUID_FLIBE   = 9, &
                         ILIQUID_PBLI    = 10
 !----------------------------------------------------------------------------------------------------------
+! statistics
+!---------------------------------------------------------------------------------------------------------- 
+  integer, parameter :: ISTATL0 = 0, & ! no statistics
+                        ISTATL1 = 1, & ! first moment
+                        ISTATL2 = 2    ! second moment
+!----------------------------------------------------------------------------------------------------------
 ! physical property
 !---------------------------------------------------------------------------------------------------------- 
   integer, parameter :: IPROPERTY_TABLE = 1, &
@@ -488,6 +494,7 @@ module udf_type_mod
     integer :: visu_idim
     integer :: visu_nskip(NDIM)
     integer :: stat_istart
+    integer :: stat_level
     integer :: stat_nskip(NDIM)
     integer :: nsubitr
     integer :: istret, mstret
