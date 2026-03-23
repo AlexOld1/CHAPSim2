@@ -327,6 +327,7 @@ end function
     end if
 
     if(dm%is_read_xinlet) then
+      ! assume inlet has same mesh resolution with the main domain, to be updated if necessary. todo: 
       allocate (dm%fbcx_qx_inl1(dm%dxcc%xsz(1), dm%dxcc%xsz(2), dm%dxcc%xsz(3)) )
       allocate (dm%fbcx_qx_inl2(dm%dxcc%xsz(1), dm%dxcc%xsz(2), dm%dxcc%xsz(3)) )
       allocate (dm%fbcx_qy_inl1(dm%dxpc%xsz(1), dm%dxpc%xsz(2), dm%dxpc%xsz(3)) )

@@ -720,7 +720,7 @@ contains
     !
     if (nrank /= 0) return
     !
-    if(.not. present(opt_is_savg) .or. .not. opt_is_savg) then
+    if(.not. present(opt_is_savg)) then
     if(dm%visu_idim == Ivisu_3D .or. dm%visu_idim == Ivisu_3D2D) then
       call generate_pathfile_name(xdmf_file, dm%idom, visuname, dir_visu, 'xdmf', iter)
       open(newunit=u, file=trim(xdmf_file), status='replace', action='write')
@@ -786,7 +786,7 @@ contains
     !
     if (nrank /= 0) return
     !
-    if(.not. present(opt_is_savg) .or. .not. opt_is_savg) then
+    if(.not. present(opt_is_savg)) then
     if(dm%visu_idim == Ivisu_3D .or. dm%visu_idim == Ivisu_3D2D) then
       call generate_pathfile_name(xdmf_file, dm%idom, visuname, dir_visu, 'xdmf', iter)
       open(newunit=u, file=trim(xdmf_file), status='old', action='write', position='append')
@@ -925,15 +925,10 @@ contains
     integer :: u
     !----------------------- 3D binary -----------------------
     call generate_pathfile_name(bin_file, dm%idom, trim(field_name), dir_data, 'bin', iter)
-    if (.not. file_exists(trim(bin_file))) then
-      if (all(dm%visu_nskip(1:3) == 1)) then
+    !call rename_existing_file(trim(bin_file))
+    if(.not. file_exists(trim(bin_file))) &
         call write_one_3d_array(accc, trim(field_name), dm%idom, iter, dm%dccc)
-      else
-        !call write_coarsened_3d(dm, accc, field_name, iter)
-        call print_warning_msg("write_visu_3d_binary_and_xdmf: coarsened output not supported")
-      end if
-    end if
-    !----------------------- 3D binary -----------------------
+    !----------------------- 3D xdmf -----------------------
     if (nrank == 0) then
       call generate_pathfile_name(xdmf_file, dm%idom, visuname, dir_visu, 'xdmf', iter)
       open(newunit=u, file=trim(xdmf_file), status='old', action='write', position='append')
@@ -971,9 +966,9 @@ contains
     npl = slice_idx(dir, n)
     slice_tag = slice_prefix(dir)//trim(int2str(npl))
     call generate_pathfile_name(bin_file, dm%idom, trim(field_name)//'_'//trim(slice_tag), dir_data, 'bin', iter)
-    if (.not. file_exists(trim(bin_file))) then
-      call write_plane_bin(dm, accc, dir, npl, bin_file)
-    end if
+    !call rename_existing_file(trim(bin_file))
+    if(.not. file_exists(trim(bin_file))) &
+    call write_plane_bin(dm, accc, dir, npl, bin_file)
     !----------------------- 2D slices XDMF -----------------------
     if (nrank == 0) then
       call write_slice_field_xdmf(dm, visuname, field_name, bin_file, dir, npl, iter)
