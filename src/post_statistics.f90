@@ -745,24 +745,24 @@ contains
     ! Favre averaging only parameters
     if(dm%is_thermo) then
       if(dm%stat_level > ISTATL0) then
-      	allocate( fl%tavg_f   (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom)   ) )
-      	allocate( fl%tavg_fu  (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 3) )
+        allocate( fl%tavg_f   (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom)   ) )
+        allocate( fl%tavg_fu  (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 3) )
         allocate( fl%tavg_fh  (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom)   ) )
-      	fl%tavg_f    = ZERO
-      	fl%tavg_fu   = ZERO
+        fl%tavg_f    = ZERO
+        fl%tavg_fu   = ZERO
         fl%tavg_fh   = ZERO
       end if
       if(dm%stat_level > ISTATL1) then
         allocate( fl%tavg_fuu (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 6) )
         allocate( fl%tavg_fuh (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 3) )
-      	fl%tavg_fuu  = ZERO
+        fl%tavg_fuu  = ZERO
         fl%tavg_fuh  = ZERO
       end if
       if(dm%stat_level > ISTATL2) then
         allocate( fl%tavg_fuuu(ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 10) )
         allocate( fl%tavg_fuuh(ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 6) )
-      	fl%tavg_fuuu = ZERO
-      	fl%tavg_fuuh = ZERO
+        fl%tavg_fuuu = ZERO
+        fl%tavg_fuuh = ZERO
       end if
     end if
     !
