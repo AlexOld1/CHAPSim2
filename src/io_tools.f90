@@ -48,23 +48,46 @@ contains
   end subroutine
 !==========================================================================================================
 !==========================================================================================================
-  subroutine write_one_3d_array(var, field_name, idom, iter, dtmp)
+  subroutine write_one_3d_array(var, field_name, idom, iter, dtmp, io_mode)
+    use typeconvert_mod
     implicit none 
     real(WP), contiguous, intent(in) :: var( :, :, :)
     type(DECOMP_INFO), intent(in) :: dtmp
     character(*), intent(in) :: field_name
     integer, intent(in) :: idom
     integer, intent(in) :: iter
+    integer, intent(in) :: io_mode
 
     character(256):: field_file
     logical :: ex
     character(len=:), allocatable :: bak_file
+    logical :: do_write
 
     call generate_pathfile_name(field_file, idom, trim(field_name), dir_data, 'bin', iter)
-    !call rename_existing_file(trim(field_file))
-    if(.not. file_exists(trim(field_file))) &
-    call decomp_2d_write_one(IPENCIL(1), var, trim(field_file), opt_decomp=dtmp)
 
+    do_write = .true.
+    if(io_mode == IO_MODE_SKIP) then
+      if (file_exists(trim(field_file))) then
+        if (nrank == 0) then
+          call Print_warning_msg("File "//trim(field_file)// &
+                                " already exists; skip writing "//trim(field_name)// &
+                                " at iteration "//trim(int2str(iter)))
+        end if
+        do_write = .false.
+      end if
+    else if (io_mode == IO_MODE_RENAME) then
+      if (file_exists(trim(field_file))) then
+        call rename_existing_file(trim(field_file))
+      end if
+    else
+      ! do nothing, just overwrite if file exists
+    end if
+
+    if (do_write) then
+      if(nrank == 0) call Print_debug_mid_msg("Writing "//trim(dir_data)//"/"//trim(field_file))
+      call decomp_2d_write_one(IPENCIL(1), var, trim(field_file), opt_decomp=dtmp)
+    end if
+    !
     return
   end subroutine
 !==========================================================================================================

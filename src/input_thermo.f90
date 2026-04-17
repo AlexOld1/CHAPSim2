@@ -48,15 +48,17 @@ module thermo_info_mod
   private :: ftp_refresh_thermal_properties_from_T_undim
   public  :: ftp_refresh_thermal_properties_from_T_undim_3Dftp
   public  :: ftp_refresh_thermal_properties_from_T_undim_3Dtm
-  private :: ftp_refresh_thermal_properties_from_H
+  public :: ftp_refresh_thermal_properties_from_H
   public  :: ftp_refresh_thermal_properties_from_H_3Dftp
   private :: ftp_convert_undim_to_dim
   private :: ftp_print
   public  :: ftp_refresh_thermal_properties_from_DH
+  public  :: ftp_refresh_thermal_properties_from_DH_3Dtm
 
   public  :: Buildup_thermo_mapping_relations
   public  :: initialise_thermal_properties
   public  :: Convert_thermal_input_2undim
+  public  :: get_qw_ramp_factor
   
 contains
 !==========================================================================================================
@@ -386,6 +388,32 @@ contains
           ftp%t = tm%tTemp(i, j, k)
           call ftp_refresh_thermal_properties_from_T_undim(ftp)
           tm%rhoh (i, j, k) = ftp%rhoh
+          tm%hEnth(i, j, k) = ftp%h
+          tm%kCond(i, j, k) = ftp%k
+          fl%dDens(i, j, k) = ftp%d
+          fl%mVisc(i, j, k) = ftp%m
+        end do
+      end do
+    end do
+
+    return
+  end subroutine 
+!==========================================================================================================
+  subroutine ftp_refresh_thermal_properties_from_DH_3Dtm(fl, tm, dm)
+    ! arguments
+    type(t_domain), intent(in) :: dm
+    type(t_flow), intent(inout) :: fl
+    type(t_thermo), intent(inout) :: tm
+    ! local
+    integer :: i, j, k
+    type(t_fluidThermoProperty) :: ftp
+
+    do k = 1, dm%dccc%xsz(3)
+      do j = 1, dm%dccc%xsz(2)
+        do i = 1, dm%dccc%xsz(1)
+          ftp%rhoh = tm%rhoh(i, j, k)
+          call ftp_refresh_thermal_properties_from_DH(ftp)
+          tm%tTemp(i, j, k) = ftp%t
           tm%hEnth(i, j, k) = ftp%h
           tm%kCond(i, j, k) = ftp%k
           fl%dDens(i, j, k) = ftp%d
@@ -1204,33 +1232,33 @@ contains
   end subroutine
 
 !==========================================================================================================
-!> \brief Initialise thermal variables if ithermo = 1.     
-!---------------------------------------------------------------------------------------------------------- 
-!> Scope:  mpi    called-freq    xdomain     module
-!>         all    once           specified   private
-!----------------------------------------------------------------------------------------------------------
-! Arguments
-!----------------------------------------------------------------------------------------------------------
-!  mode           name          role                                           
-!----------------------------------------------------------------------------------------------------------
-!> \param[inout]  fl   flow type
-!> \param[inout]  tm   thermo type
-!==========================================================================================================
-  subroutine initialise_thermal_properties (fl, tm, dm)
+  subroutine initialise_thermal_properties(fl, tm, dm)
+    use random_number_generation_mod
     use udf_type_mod
+    use find_max_min_ave_mod
     implicit none
+    !
     type(t_flow),   intent(inout) :: fl
     type(t_thermo), intent(inout) :: tm
-    type(t_domain), intent(in) :: dm
+    type(t_domain), intent(in)    :: dm
+    type(DECOMP_INFO)             :: dtmp
 
-    integer :: j, jj, nxst, nxen, nxen1, nxen2
-    real(WP) :: Ts
+    integer  :: i, j, k, ii, jj, kk
+    integer  :: nxinl, nxout, nxouts, nxoute
+    integer  :: n
+    real(WP) :: Ts, rd, lownoise
+    real(WP) :: rhoh_bulk(2)
+    character(len = 80) :: str
     
-    if(nrank == 0) call Print_debug_start_msg("Initialise thermal variables ...")
-    !----------------------------------------------------------------------------------------------------------
-    !   initialise thermal fields
-    !----------------------------------------------------------------------------------------------------------
-    if(nrank == 0) then
+    if (nrank == 0) call Print_debug_start_msg("Initialise thermal variables ...")
+
+    dtmp = dm%dccc
+    !--------------------------------------------------------------------------------------------------------
+    ! Initialise temperature field - no perburbation
+    !--------------------------------------------------------------------------------------------------------
+    select case (tm%inittype)
+    case (INIT_GVCONST)
+      if (nrank == 0) then
       call Print_debug_mid_msg("The initial thermal properties (undim) are")
       write (*, wrtfmt1r) '  Temperature:',          tm%ftp_ini%t
       write (*, wrtfmt1r) '  Density:',              tm%ftp_ini%d
@@ -1240,75 +1268,115 @@ contains
       write (*, wrtfmt1r) '  Enthalphy:',            tm%ftp_ini%h
       write (*, wrtfmt1r) '  mass enthaphy:',        tm%ftp_ini%rhoh
     end if
-    ! -----------------------------
-    ! Init from ftp_ini
-    ! -----------------------------
-    fl%dDens = tm%ftp_ini%d
-    fl%mVisc = tm%ftp_ini%m
-    tm%rhoh  = tm%ftp_ini%rhoh
-    tm%hEnth = tm%ftp_ini%h
-    tm%kCond = tm%ftp_ini%k
     tm%tTemp = tm%ftp_ini%t
-    ! -----------------------------
-    ! Buffer-layer x ranges
-    ! -----------------------------
-    nxst  = 0
-    nxen  = 0
-    nxen1 = dm%dccc%xsz(1)
-    nxen2 = dm%dccc%xsz(1)
-
-    if ( (dm%thermo_buffer_layer(1) - dm%h(1)) > MINP ) then
-      nxst = floor(dm%thermo_buffer_layer(1) * dm%h1r(1))
-    end if
-
-    if ( (dm%thermo_buffer_layer(2) - dm%h(1)) > MINP ) then
-      nxen  = floor(dm%thermo_buffer_layer(2) * dm%h1r(1))
-      nxen1 = dm%dccc%xsz(1) - nxen
-      nxen2 = dm%dccc%xsz(1)
-    end if
-    ! -----------------------------
-    ! Apply buffer-layer overrides (same pattern, twice)
-    ! -----------------------------
-    if (nxst > 0) then
-      fl%dDens(1:nxst, :, :) = ONE
-      fl%mVisc(1:nxst, :, :) = ONE
-      tm%rhoh (1:nxst, :, :) = ZERO
-      tm%hEnth(1:nxst, :, :) = ZERO
-      tm%kCond(1:nxst, :, :) = ONE
-      tm%tTemp(1:nxst, :, :) = ONE
-    end if
-
-    if (nxen > 0) then
-      fl%dDens(nxen1:nxen2, :, :) = ONE
-      fl%mVisc(nxen1:nxen2, :, :) = ONE
-      tm%rhoh (nxen1:nxen2, :, :) = ZERO
-      tm%hEnth(nxen1:nxen2, :, :) = ZERO
-      tm%kCond(nxen1:nxen2, :, :) = ONE
-      tm%tTemp(nxen1:nxen2, :, :) = ONE
-    end if
-    ! -----------------------------
-    ! Optional linear temperature init
-    ! -----------------------------
-    if (dm%ibcy_Tm(2) == IBC_DIRICHLET .and. tm%inittype == INIT_GVBCLN) then
-
+    case (INIT_GVBCLN)
+      if (dm%ibcy_Tm(2) == IBC_DIRICHLET) then
       if (dm%ibcy_Tm(1) == IBC_DIRICHLET) then
         Ts = dm%fbcy_const(1, 5)
       else
         Ts = tm%ftp_ini%t
       end if
+        do j = 1, dtmp%xsz(2)
+          jj = dtmp%xst(2) + j - 1
+          tm%tTemp(:, j, :) = (dm%yc(jj) - dm%lyb) / (dm%lyt - dm%lyb) * &
+                              (dm%fbcy_const(2, 5) - Ts) + Ts
+        end do
+      end if
+    case default
+      tm%tTemp = tm%ftp_ini%t
+    end select
+    !--------------------------------------------------------------------------------------------------------
+    ! Refresh thermal properties from temperature
+    !--------------------------------------------------------------------------------------------------------
+    call ftp_refresh_thermal_properties_from_T_undim_3Dtm(fl, tm, dm)
 
-      do j = 1, dm%dccc%xsz(2)
-        jj = dm%dccc%xst(2) + j - 1
-        tm%tTemp(:, j, :) = (dm%yc(jj) - dm%lyb) / (dm%lyt - dm%lyb) &
-                          * (dm%fbcy_const(2, 5) - Ts) + Ts
+    if(dm%ibcx_Tm(1) == IBC_PERIODIC .and. &
+       dm%ibcx_Tm(2) == IBC_PERIODIC) then
+      if(dm%ibcy_Tm(1) == IBC_NEUMANN .or. &
+         dm%ibcy_Tm(2) == IBC_NEUMANN) then
+        ! get bulk energy
+        str = 'rhoh'
+        call Get_volumetric_average_3d(dm, dm%dccc, tm%rhoh, rhoh_bulk(1), SPACE_AVERAGE, trim(str))
+        if(nrank == 0) &
+        write(*, wrtfmt1e) "The initial, [original] bulk "//trim(str)//" = ", rhoh_bulk(1)
+      end if
+    end if
+    !--------------------------------------------------------------------------------------------------------
+    ! Add low-level random perturbation to temperature field
+    !--------------------------------------------------------------------------------------------------------
+    lownoise = fl%noiselevel*2.0e-4_WP
+    if (abs(lownoise) > MINP) then
+      if(nrank == 0) call Print_debug_inline_msg("Add low-level random perturbation to temperature field ...")
+      do k = 1, dtmp%xsz(3)
+        kk = dtmp%xst(3) + k - 1
+        do j = 1, dtmp%xsz(2)
+          jj = dtmp%xst(2) + j - 1
+          do i = 1, dtmp%xsz(1)
+            ii = dtmp%xst(1) + i - 1
+            call generate_random11_mixhash(ii, jj, kk, n, rd)
+            tm%tTemp(i, j, k) = tm%tTemp(i, j, k) * (ONE + lownoise * rd)
       end do
-      ! Re-impose buffer-layer temp after the profile is set
-      if (nxst > 0) tm%tTemp(1:nxst, :, :) = ONE
-      if (nxen > 0) tm%tTemp(nxen1:nxen2, :, :) = ONE
+        end do
+      end do
+    end if
+    !--------------------------------------------------------------------------------------------------------
+    ! Refresh thermal properties from temperature
+    !--------------------------------------------------------------------------------------------------------
       call ftp_refresh_thermal_properties_from_T_undim_3Dtm(fl, tm, dm)
+    !
+    if(dm%ibcx_Tm(1) == IBC_PERIODIC .and. &
+       dm%ibcx_Tm(2) == IBC_PERIODIC) then
+      if(dm%ibcy_Tm(1) == IBC_NEUMANN .or. &
+         dm%ibcy_Tm(2) == IBC_NEUMANN) then
+        ! get bulk energy
+        str = 'rhoh'
+        call Get_volumetric_average_3d(dm, dm%dccc, tm%rhoh, rhoh_bulk(2), SPACE_AVERAGE, trim(str))
+        if(nrank == 0) &
+        write(*, wrtfmt1e) "The initial, [real] bulk "//trim(str)//" = ", rhoh_bulk(2)
+        tm%rhoh = tm%rhoh * (rhoh_bulk(1)/rhoh_bulk(2))
+        call Get_volumetric_average_3d(dm, dm%dccc, tm%rhoh, rhoh_bulk(2), SPACE_AVERAGE, trim(str))
+        if(nrank == 0) &
+        write(*, wrtfmt1e) "The initial, [adjust] bulk "//trim(str)//" = ", rhoh_bulk(2)
+        call ftp_refresh_thermal_properties_from_DH_3Dtm(fl, tm, dm)
+      end if
+    end if
+    !--------------------------------------------------------------------------------------------------------
+    ! Apply thermo buffer layers in x direction
+    !--------------------------------------------------------------------------------------------------------
+    nxinl  = 0
+    nxout  = 0
+    nxouts = 0
+    nxoute = 0
+    if ((tm%thermo_buffer_layer(1) - dm%h(1)) > MINP) then
+      nxinl = floor(tm%thermo_buffer_layer(1) * dm%h1r(1))
+      if(nrank == 0) call Print_debug_inline_msg ("Configuring thermo buffer layers at the inlet...")
+    end if
+
+    if ((tm%thermo_buffer_layer(2) - dm%h(1)) > MINP) then
+      nxout  = floor(tm%thermo_buffer_layer(2) * dm%h1r(1))
+      nxouts = dtmp%xsz(1) - nxout
+      nxoute = dtmp%xsz(1)
+      if(nrank == 0) call Print_debug_inline_msg ("Configuring thermo buffer layers at the outlet...")
+    end if
+    if (nxinl > 0) then 
+      fl%dDens(1:nxinl, :, :) = ONE
+      fl%mVisc(1:nxinl, :, :) = ONE
+      tm%rhoh (1:nxinl, :, :) = ZERO
+      tm%hEnth(1:nxinl, :, :) = ZERO
+      tm%kCond(1:nxinl, :, :) = ONE
+      tm%tTemp(1:nxinl, :, :) = ONE
+    end if
+    if (nxout > 0) then 
+      fl%dDens(nxouts:nxoute, :, :) = ONE
+      fl%mVisc(nxouts:nxoute, :, :) = ONE
+      tm%rhoh (nxouts:nxoute, :, :) = ZERO
+      tm%hEnth(nxouts:nxoute, :, :) = ZERO
+      tm%kCond(nxouts:nxoute, :, :) = ONE
+      tm%tTemp(nxouts:nxoute, :, :) = ONE
     end if
 
     if (nrank == 0) call Print_debug_end_msg()
+
     return
   end subroutine initialise_thermal_properties
 
@@ -1383,6 +1451,24 @@ contains
     if(nrank == 0) call Print_debug_end_msg()
     return
   end subroutine Buildup_thermo_mapping_relations
+
+  function get_qw_ramp_factor(iter, istt, iend) result(framp)
+    use parameters_constant_mod
+    use math_mod
+    implicit none
+    integer, intent(in) :: iter, istt, iend
+    real(WP) :: framp
+    real(WP) :: xi
+
+    if(iter < istt) then
+      framp = ZERO
+    else if (iter > iend) then 
+      framp = ONE
+    else 
+      xi = real(iter - istt, WP) / real(iend - istt, WP)
+      framp = HALF * (ONE - COS_WP(ACOS_WP(-ONE) * xi)) ! half cosine
+    end if
+  end function
 
 end module thermo_info_mod
 

@@ -139,7 +139,7 @@ contains
     if(dm%is_conv_outlet(1)) then 
       allocate (tm%fbcx_rhoh_rhs0(dm%dccc%xsz(2), dm%dccc%xsz(3))); tm%fbcx_rhoh_rhs0 = ZERO
     end if
-    if(dm%is_conv_outlet(2)) then 
+    if(dm%is_conv_outlet(3)) then 
       allocate (tm%fbcz_rhoh_rhs0(dm%dccc%zsz(1), dm%dccc%xsz(2))); tm%fbcz_rhoh_rhs0 = ZERO
     end if
 
@@ -166,32 +166,18 @@ contains
     use mpi_mod
     use math_mod
     use boundary_conditions_mod
-    use flatten_index_mod
-    !use io_visualisation_mod
+    !use flatten_index_mod
+    !use visualisation_field_mod
     use wtformat_mod
     use find_max_min_ave_mod
     use wrt_debug_field_mod
-    use iso_fortran_env, only : int32, int64
+    implicit none
     type(t_domain),  intent(in) :: dm
     type(t_flow), intent(inout) :: fl
     
-    integer :: seed
-    integer(int32) :: seed_lcg ! used only for the LCG random number generator
-    integer, parameter :: seed0 = 123456
     integer :: i, j, k! local id
     integer :: ii, jj, kk ! global id
     integer :: n, nsz  
-    integer(int64) :: seed64, x
-    integer(int64), parameter :: h1 = 73856093_int64
-    integer(int64), parameter :: h2 = 19349663_int64
-    integer(int64), parameter :: h3 = 83492791_int64
-    integer(int64), parameter :: h4 = 2654435761_int64
-    integer(int64), parameter :: lcg_m1 = 2147483646_int64
-    real(WP), parameter :: hash_a = 12.9898_wp
-    real(WP), parameter :: hash_b = 78.233_wp
-    real(WP), parameter :: hash_c = 37.719_wp
-    real(WP), parameter :: hash_d = 11.131_wp
-    real(WP), parameter :: hash_s = 43758.5453123_wp
     real(WP) :: rd, lownoise, rnd
     type(DECOMP_INFO) :: dtmp
 
@@ -199,7 +185,6 @@ contains
     !----------------------------------------------------------------------------------------------------------
     !   Initialisation in x pencil
     !----------------------------------------------------------------------------------------------------------
-    seed = 0
     fl%pres(:, :, :) = ZERO
     fl%pcor(:, :, :) = ZERO
     fl%qx(:, :, :) = ZERO
@@ -227,46 +212,16 @@ contains
           do i = 1, dtmp%xsz(1)
             ii = dtmp%xst(1) + i - 1
             ! Method 1: using fortran random number generator
-!            ii = i
-!            seed = flatten_index(ii, jj, kk, dtmp%xsz(1), dtmp%ysz(2)) + seed0 * n
-!            call initialise_random_number ( seed )
-!            call Generate_r_random( -ONE, ONE, rd)
+            !call generate_random11_fortran (ii, jj, kk, n, dtmp%xsz(1), dtmp%ysz(2), r)
 
             ! Method 2: Stateless index hash for GPU: avoids seed-neighbor correlation striping.
-            ! sin_wp with scaling may be sensitive across platforms/compilers
-!            rnd = sin_wp( real(ii, WP) * hash_a + real(jj, WP) * hash_b + &
-!                          real(kk, WP) * hash_c + real(n, WP) * hash_d ) * hash_s
-!            rnd = rnd - real(floor(rnd), WP)
-!            rd = TWO * rnd - ONE
+            !call generate_random11_stateless_hash(ii, jj, kk, n, rd)
 
             ! Method 3: Integer-only stateless hash (CPU/GPU consistent), then whiten via LCG.
-!            seed64 = int(ii,int64)*h1 + int(jj,int64)*h2 + &
-!                     int(kk,int64)*h3 + int(n,int64)*h4 + &
-!                     int(seed0,int64)
-!            seed_lcg = int(iand(seed64, z'7FFFFFFF'), int32)
-!            if (seed_lcg == 0_int32) seed_lcg = 1_int32
-!            call lcg_random(seed_lcg, rd)
-!            call lcg_random(seed_lcg, rd)
-!            call lcg_random(seed_lcg, rd)
+            ! call generate_random11_LCG_hash(ii, jj, kk, n, rd)        
 
             ! Method 4: 64-bit XOR / Mix Hash (Stateless, CPU/GPU consistent)
-            x = int(ii, int64)
-            x = ieor(x, ishft(int(jj,int64), 21))
-            x = ieor(x, ishft(int(kk,int64), 42))
-            x = ieor(x, ishft(int(n ,int64), 10))
-
-            ! 64-bit mix (splitmix64 style)
-            x = x + int(z'9E3779B97F4A7C15', int64)
-            x = ieor(x, ishft(x, -30))
-            x = x * int(z'BF58476D1CE4E5B9', int64)
-            x = ieor(x, ishft(x, -27))
-            x = x * int(z'94D049BB133111EB', int64)
-            x = ieor(x, ishft(x, -31))
-
-            rnd = real(iand(x, z'7FFFFFFFFFFFFFFF'), wp) / &
-                  real(huge(1_int64), wp)
-
-            rd = TWO*rnd - ONE
+            call generate_random11_mixhash(ii, jj, kk, n, rd)
 
             if(n == 1) fl%qx(i, j, k) = lownoise * rd
             if(n == 2) fl%qy(i, j, k) = lownoise * HALF * rd * dm%rp(jj)
@@ -678,7 +633,12 @@ contains
       call Generate_random_field(fl, dm)
 
     else if (fl%inittype == INIT_INLET) then
+      
+      if(dm%is_read_xinlet) then
+        call read_instantaneous_xinlet(fl, dm, opt_iter=1)
+      else
       call Generate_random_field(fl, dm)
+      end if
       call initialise_flow_from_given_inlet(fl, dm)
 
     else if (fl%inittype == INIT_GVCONST) then
@@ -788,9 +748,10 @@ contains
     end if
 
     fl%dDens0(:, :, :) = fl%dDens(:, :, :)
-
+    if(nrank == 0) call Print_debug_mid_msg("update_fbcy_cc_thermo_halo ...")
     if (dm%icase == ICASE_PIPE) call update_fbcy_cc_thermo_halo(tm, dm)
  
+    if(nrank == 0) call Print_debug_mid_msg("write_visu_thermo ...")
     call write_visu_thermo(tm, fl, dm, 'init')
 
     if(nrank == 0) call Print_debug_end_msg()

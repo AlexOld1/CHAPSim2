@@ -458,6 +458,7 @@ contains
     integer  :: i, j, k
     integer  :: wrt_unit
     real(WP) :: dyp, dyn, ddy, dx, dy, dz
+    real(WP) :: dy_max, dy_min
     !real(WP) :: dy(dm%nc(2))
     if(nrank == 0) call Print_debug_start_msg("Initialising domain geometric ...")
 
@@ -520,6 +521,14 @@ contains
         dm%yc(j) = real(j - 1, WP) * dm%h(2) + dm%h(2) * HALF + dm%lyb
       end do
     end if
+
+    dy_max = MINP
+    dy_min = MAXP
+    do j = 1, dm%nc(2)
+      dy = dm%yp(j + 1) - dm%yp(j)
+      if(dy > dy_max) dy_max = dy
+      if(dy < dy_min) dy_min = dy
+    end do
 !----------------------------------------------------------------------------------------------------------
 ! set 1/dx, 1/(dx)^2
 !----------------------------------------------------------------------------------------------------------
@@ -621,10 +630,11 @@ contains
       write (*, wrtfmt3i) 'geometry number of nodes     in xyz :', dm%np_geo(1:NDIM)
       write (*, wrtfmt3i) 'calculation number of cells  in xyz :', dm%nc(1:NDIM)
       write (*, wrtfmt3i) 'calculation number of points in xyz :', dm%np(1:NDIM)
-      write (*, wrtfmt3r) 'grid spacing in x, z: ', dm%h(1), dm%h(3)
-      write (*, wrtfmt1e) 'grid spacing in y(geometric     uniform) :', (dm%lyt - dm%lyb) / real(dm%nc(2), WP)
-      write (*, wrtfmt1e) 'grid spacing in y(computational uniform) :', dm%h(2)
       write (*, wrtfmt1e) 'volume of computational domain :', dm%vol
+      write (*, wrtfmt2e) 'grid spacing in x, z : ', dm%h(1), dm%h(3)
+      write (*, wrtfmt3e) 'min_dy, max_dy, ratio: ', dy_min, dy_max, dy_max/dy_min
+      if(dm%icoordinate == ICYLINDRICAL) &
+      write (*, wrtfmt3e) 'min_rdz, max_rdz, ratio: ', dm%rc(1)*dm%h(3), dm%rc(dm%nc(2))*dm%h(3), dm%rc(dm%nc(2))/dm%rc(1)
     end if
     !----------------------------------------------------------------------------------------------------------
     ! print out data for debugging

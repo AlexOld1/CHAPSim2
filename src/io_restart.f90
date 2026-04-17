@@ -40,10 +40,10 @@ contains
 
     if(nrank == 0) call Print_debug_inline_msg("writing out instantaneous 3d flow data ...")
 
-    call write_one_3d_array(fl%qx, 'qx', dm%idom, fl%iteration, dm%dpcc)
-    call write_one_3d_array(fl%qy, 'qy', dm%idom, fl%iteration, dm%dcpc)
-    call write_one_3d_array(fl%qz, 'qz', dm%idom, fl%iteration, dm%dccp)
-    call write_one_3d_array(fl%pres, 'pr', dm%idom, fl%iteration, dm%dccc)
+    call write_one_3d_array(fl%qx, 'qx', dm%idom, fl%iteration, dm%dpcc, dm%io_mode)
+    call write_one_3d_array(fl%qy, 'qy', dm%idom, fl%iteration, dm%dcpc, dm%io_mode)
+    call write_one_3d_array(fl%qz, 'qz', dm%idom, fl%iteration, dm%dccp, dm%io_mode)
+    call write_one_3d_array(fl%pres, 'pr', dm%idom, fl%iteration, dm%dccc, dm%io_mode)
 
     if(nrank == 0) call Print_debug_end_msg()
     return
@@ -62,8 +62,8 @@ contains
 
     if(nrank == 0) call Print_debug_inline_msg("writing out instantaneous 3d thermo data ...")
 
-    call write_one_3d_array(tm%rhoh,  'rhoh', dm%idom, tm%iteration, dm%dccc)
-    call write_one_3d_array(tm%tTemp, 'temp', dm%idom, tm%iteration, dm%dccc)
+    call write_one_3d_array(tm%rhoh,  'rhoh', dm%idom, tm%iteration, dm%dccc, dm%io_mode)
+    call write_one_3d_array(tm%tTemp, 'temp', dm%idom, tm%iteration, dm%dccc, dm%io_mode)
 
     if(nrank == 0) call Print_debug_end_msg()
     return
@@ -301,15 +301,15 @@ contains
     if(niter == dm%ndbfre) then
       if( mod(fl%iteration - dm%ndbstart + 1, dm%ndbfre) /= 0 .and. nrank == 0) &
       call Print_warning_msg("niter /= dm%ndbfre, something wrong in writing outlet data")
-      iter = (fl%iteration - dm%ndbstart + 1 )/dm%ndbfre * dm%ndbfre
-      call write_one_3d_array(dm%fbcx_qx_outl1, 'outlet1_qx', dm%idom, iter, dm%dxcc)
-      call write_one_3d_array(dm%fbcx_qx_outl2, 'outlet2_qx', dm%idom, iter, dm%dxcc)
-      call write_one_3d_array(dm%fbcx_qy_outl1, 'outlet1_qy', dm%idom, iter, dm%dxpc)
-      call write_one_3d_array(dm%fbcx_qy_outl2, 'outlet2_qy', dm%idom, iter, dm%dxpc)
-      call write_one_3d_array(dm%fbcx_qz_outl1, 'outlet1_qz', dm%idom, iter, dm%dxcp)
-      call write_one_3d_array(dm%fbcx_qz_outl2, 'outlet2_qz', dm%idom, iter, dm%dxcp)
-      call write_one_3d_array(dm%fbcx_pr_outl1, 'outlet1_pr', dm%idom, iter, dm%dxcc)
-      call write_one_3d_array(dm%fbcx_pr_outl2, 'outlet2_pr', dm%idom, iter, dm%dxcc)
+      iter = (fl%iteration - dm%ndbstart)/dm%ndbfre * dm%ndbfre
+      call write_one_3d_array(dm%fbcx_qx_outl1, 'outlet1_qx', dm%idom, iter, dm%dxcc, dm%io_mode)
+      call write_one_3d_array(dm%fbcx_qx_outl2, 'outlet2_qx', dm%idom, iter, dm%dxcc, dm%io_mode)
+      call write_one_3d_array(dm%fbcx_qy_outl1, 'outlet1_qy', dm%idom, iter, dm%dxpc, dm%io_mode)
+      call write_one_3d_array(dm%fbcx_qy_outl2, 'outlet2_qy', dm%idom, iter, dm%dxpc, dm%io_mode)
+      call write_one_3d_array(dm%fbcx_qz_outl1, 'outlet1_qz', dm%idom, iter, dm%dxcp, dm%io_mode)
+      call write_one_3d_array(dm%fbcx_qz_outl2, 'outlet2_qz', dm%idom, iter, dm%dxcp, dm%io_mode)
+      call write_one_3d_array(dm%fbcx_pr_outl1, 'outlet1_pr', dm%idom, iter, dm%dxcc, dm%io_mode)
+      call write_one_3d_array(dm%fbcx_pr_outl2, 'outlet2_pr', dm%idom, iter, dm%dxcc, dm%io_mode)
       !if(nrank == 0) write (*,*) " writing outlet database at ", fl%iteration, 'for iter =', iter -  dm%ndbfre, 'to ', iter
     end if
 ! #ifdef DEBUG_STEPS
@@ -437,12 +437,13 @@ contains
 !     return
 !   end subroutine
 !==========================================================================================================
-  subroutine read_instantaneous_xinlet(fl, dm)
+  subroutine read_instantaneous_xinlet(fl, dm, opt_iter)
     use typeconvert_mod
     use io_tools_mod
     implicit none 
     type(t_flow), intent(inout) :: fl
     type(t_domain), intent(inout) :: dm
+    integer, intent(in), optional :: opt_iter
     
     character(64):: data_flname_path
     integer :: iter, niter, nblock, nblocks
@@ -463,21 +464,15 @@ contains
     !     iter = 31, 32, ...,40, read file 10*1 at block = 1
     ! ----------------------------------------------------------------------------
     iter = fl%iteration
-    ! ----------------------------------------------------------------------------
-    ! Total number of blocks written
-    ! ----------------------------------------------------------------------------
-    nblocks = (dm%ndbend - dm%ndbstart + 1) / dm%ndbfre
-    if ((dm%ndbend - dm%ndbstart + 1) > nblocks*dm%ndbfre) nblocks = nblocks + 1
-    ! ----------------------------------------------------------------------------
-    ! Determine which block this iteration belongs to
-    ! ----------------------------------------------------------------------------
-    nblock = mod((iter - 1) / dm%ndbfre, nblocks)
+    if (present(opt_iter)) iter = opt_iter
     ! ----------------------------------------------------------------------------
     ! Only read if current iteration is the first of the block
     ! ----------------------------------------------------------------------------
     if (mod(iter-1, dm%ndbfre)==0 .or. iter == (fl%iterfrom+1)) then
-        niter = dm%ndbfre * (nblock + 1)
-
+    nblocks = (dm%ndbend - dm%ndbstart + 1) / dm%ndbfre
+    if ((dm%ndbend - dm%ndbstart + 1) > nblocks*dm%ndbfre) nblocks = nblocks + 1
+    nblock = mod((iter - 1) / dm%ndbfre, nblocks)
+      niter = dm%ndbfre * nblock
       if(nrank == 0) &
       call Print_debug_mid_msg('Read inlet database at iteration '//trim(int2str(iter))&
         //' mapped to file name ='//trim(int2str(niter)))
@@ -989,7 +984,7 @@ module io_field_interpolation_mod
     use geometry_mod
     use domain_decomposition_mod
     use io_restart_mod
-   !use io_visualisation_mod
+   !use visualisation_field_mod
     implicit none 
     type(t_domain), intent(in) :: dm_src
     type(t_flow)  , intent(in) :: fl_src

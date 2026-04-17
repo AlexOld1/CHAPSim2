@@ -600,7 +600,7 @@ contains
     if (present(suffix)) visuname = trim(visuname)//'_'//trim(suffix)
     
     call write_visu_file_begin(dm, visuname, iter)
-    call write_visu_field_bin_and_xdmf(dm, fl%pres, 'pressure', visuname, iter, N_DIRECTION)
+    call write_visu_field_bin_and_xdmf(dm, fl%pres, 'pr', visuname, iter, N_DIRECTION)
     call write_visu_field_bin_and_xdmf(dm, fl%pcor, 'phi',      visuname, iter, N_DIRECTION)
 
     call write_visu_field_bin_and_xdmf(dm, fl%qx, 'qx_ccc', visuname, iter, X_DIRECTION, opt_ibc=dm%ibcx_qx)
@@ -734,7 +734,7 @@ contains
     end if
     end if
     !
-    if (present(opt_is_savg) .and. opt_is_savg) then
+    if (present(opt_is_savg)) then
       nen = 0
       nst = 0
     else
@@ -795,7 +795,7 @@ contains
     end if
     end if
     !
-    if (present(opt_is_savg) .and. opt_is_savg) then
+    if (present(opt_is_savg)) then
       nen = 0
       nst = 0
     else
@@ -849,7 +849,7 @@ contains
     if (dm%visu_idim == Ivisu_2D .or. dm%visu_idim == Ivisu_3D2D) then
       do dir = 1, NDIM
         do n = 1, NSLICE
-          call write_visu_plane_binary_and_xdmf(dm, accc, field_name, visuname, dir, n, iter) 
+          call write_visu_plane_binary_and_xdmf(dm, accc, field_name, visuname, dir, n, iter, dm%io_mode) 
         end do
       end do
     end if
@@ -923,11 +923,11 @@ contains
     character(len=256) :: xdmf_file
     character(len=64) :: dimstring
     integer :: u
-    !----------------------- 3D binary -----------------------
+    logical :: do_write
+
+    !----------------------- 3D binary  -----------------------
     call generate_pathfile_name(bin_file, dm%idom, trim(field_name), dir_data, 'bin', iter)
-    !call rename_existing_file(trim(bin_file))
-    if(.not. file_exists(trim(bin_file))) &
-        call write_one_3d_array(accc, trim(field_name), dm%idom, iter, dm%dccc)
+    call write_one_3d_array(accc, trim(field_name), dm%idom, iter, dm%dccc, dm%io_mode)
     !----------------------- 3D xdmf -----------------------
     if (nrank == 0) then
       call generate_pathfile_name(xdmf_file, dm%idom, visuname, dir_visu, 'xdmf', iter)
@@ -939,7 +939,7 @@ contains
     return
   end subroutine write_visu_3d_binary_and_xdmf
   !==========================================================================================================
-  subroutine write_visu_plane_binary_and_xdmf(dm, accc, field_name, visuname, dir, n, iter)
+  subroutine write_visu_plane_binary_and_xdmf(dm, accc, field_name, visuname, dir, n, iter, io_mode)
     use udf_type_mod
     use decomp_2d
     use decomp_2d_io
@@ -948,7 +948,7 @@ contains
     type(t_domain), intent(in) :: dm
     real(WP), intent(in) :: accc(:,:,:)
     character(*), intent(in) :: field_name, visuname
-    integer, intent(in) :: iter, dir, n
+    integer, intent(in) :: iter, dir, n, io_mode
 
     character(len=256) :: data3d
     character(len=256) :: xdmf
@@ -958,6 +958,7 @@ contains
     character(len=256) :: bin_file
     character(len=256) :: slice_tag
     integer :: ncell2(3)
+    logical :: do_write
 
     nnode = nnd_visu(1:3)
     ncell = ncl_visu(1:3)
@@ -965,10 +966,9 @@ contains
     !----------------------- 2D slices binary -----------------------
     npl = slice_idx(dir, n)
     slice_tag = slice_prefix(dir)//trim(int2str(npl))
-    call generate_pathfile_name(bin_file, dm%idom, trim(field_name)//'_'//trim(slice_tag), dir_data, 'bin', iter)
-    !call rename_existing_file(trim(bin_file))
-    if(.not. file_exists(trim(bin_file))) &
-    call write_plane_bin(dm, accc, dir, npl, bin_file)
+    call generate_pathfile_name(bin_file, dm%idom, trim(field_name)//'_'//trim(slice_tag), &
+                                dir_data, 'bin', iter)
+    call write_plane_bin(dm, accc, dir, npl, bin_file, dm%io_mode)
     !----------------------- 2D slices XDMF -----------------------
     if (nrank == 0) then
       call write_slice_field_xdmf(dm, visuname, field_name, bin_file, dir, npl, iter)
@@ -1006,7 +1006,7 @@ contains
   !   deallocate(coarse)
   ! end subroutine write_coarsened_3d
   !==========================================================================================================
-  subroutine write_plane_bin(dm, accc_in, dir, npl, bin_file)
+  subroutine write_plane_bin(dm, accc_in, dir, npl, bin_file, io_mode)
     use udf_type_mod
     use decomp_2d_io
     use transpose_extended_mod
@@ -1015,10 +1015,34 @@ contains
     real(WP), intent(in) :: accc_in(:,:,:)
     integer, intent(in) :: dir, npl
     character(*), intent(in) :: bin_file
+    integer, intent(in) :: io_mode
 
     real(WP), allocatable :: accc_yp(:,:,:), accc_zp(:,:,:)
     real(WP), allocatable :: accc(:,:,:)
+    logical :: do_write
 
+    do_write = .true.
+    select case (io_mode)
+    case (IO_MODE_OVERWRITE)
+      continue
+    case (IO_MODE_SKIP)
+      if (file_exists(trim(bin_file))) then
+        if (nrank == 0) then
+          call Print_warning_msg("File "//trim(bin_file)// &
+                                " already exists; skip writing")
+        end if
+        do_write = .false.
+      end if
+    case (IO_MODE_RENAME)
+      if (file_exists(trim(bin_file))) then
+        call rename_existing_file(trim(bin_file))
+      end if
+    case default
+      continue
+    end select
+    !
+    if(.not. do_write) return
+    !
     select case(dir)
     case(1)
       allocate(accc(d1cc%xsz(1), d1cc%xsz(2), d1cc%xsz(3)))

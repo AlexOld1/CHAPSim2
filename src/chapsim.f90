@@ -219,7 +219,9 @@ subroutine Solve_eqs_iteration
   integer :: iter, isub
   integer :: iteration
   integer :: niter
-
+  real(WP) :: maxmin_ep(2), maxmin_temp(2), &
+              maxmin_qx(2), maxmin_qy(2), maxmin_qz(2), &
+              maxmin_pr(2), maxmin_ph(2)
   
   !==========================================================================================================
   ! flow advancing/marching iteration/time control
@@ -281,7 +283,7 @@ subroutine Solve_eqs_iteration
       if ( (iter >= flow(i)%nIterFlowStart) .and. (iter <=flow(i)%nIterFlowEnd)) then
         is_flow(i) = .true.
         if (nrank == 0 .and. .not. is_IO_off) then
-          write(*, wrtfmt3e) " flow undim time & dt: ", flow(i)%time, domain(i)%dt
+          write(*, wrtfmt3e) " flow undim time & dt:", flow(i)%time, domain(i)%dt
           call Print_debug_mid_msg('Numerical Stability Info')
         end if
         flow(i)%time = flow(i)%time + domain(i)%dt
@@ -387,17 +389,17 @@ subroutine Solve_eqs_iteration
         call Check_element_mass_conservation(flow(i), domain(i), iter)
         if(domain(1)%is_mhd) then
           call check_current_conservation(mhd(i), domain(i))
-          call Find_max_min_3d(mhd(i)%ep, opt_name="ep =")
+          call Find_max_min_3d(mhd(i)%ep, opt_work=maxmin_ep, opt_name="ep =")
         end if
         if(is_thermo(i)) then
-          call Find_max_min_3d(thermo(i)%tTemp, opt_name="T =")
+          call Find_max_min_3d(thermo(i)%tTemp, opt_work=maxmin_temp, opt_name="T =")
           !call Find_max_min_3d(thermo(i)%rhoh,  opt_name="rhoh :")
         end if
-        call Find_max_min_3d(flow(i)%qx, opt_name="qx =")
-        call Find_max_min_3d(flow(i)%qy, opt_name="qy =")
-        call Find_max_min_3d(flow(i)%qz, opt_name="qz =")
-        call Find_max_min_3d(flow(i)%pres, opt_name="pr =")
-        call Find_max_min_3d(flow(i)%pcor, opt_name="ph =")
+        call Find_max_min_3d(flow(i)%qx,   opt_work=maxmin_qx, opt_name="qx =")
+        call Find_max_min_3d(flow(i)%qy,   opt_work=maxmin_qy, opt_name="qy =")
+        call Find_max_min_3d(flow(i)%qz,   opt_work=maxmin_qz, opt_name="qz =")
+        call Find_max_min_3d(flow(i)%pres, opt_work=maxmin_pr, opt_name="pr =")
+        call Find_max_min_3d(flow(i)%pcor, opt_work=maxmin_ph, opt_name="ph =")
       end if
       !----------------------------------------------------------------------------------------------------------
       !  write out check point data for restart

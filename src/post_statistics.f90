@@ -93,7 +93,7 @@ contains
     if (px .and. (.not. py) .and. (.not. pz)) then
       allocate(savg_data(dm%dccc%xsz(1), dm%dccc%xsz(2), dm%dccc%xsz(3)))
       call mean_over_one_dir_to_plane(data_in, dm, XDIR, savg_data)
-      call write_visu_plane_binary_and_xdmf(dm, savg_data, field_name, visuname, 1, 0, iter) 
+      call write_visu_plane_binary_and_xdmf(dm, savg_data, field_name, visuname, 1, 0, iter, dm%io_mode) 
       deallocate(savg_data)
       return
     end if
@@ -102,7 +102,7 @@ contains
     if ((.not. px) .and. py .and. (.not. pz)) then
       allocate(savg_data(dm%dccc%xsz(1), dm%dccc%xsz(2), dm%dccc%xsz(3)))
       call mean_over_one_dir_to_plane(data_in, dm, YDIR, savg_data)
-      call write_visu_plane_binary_and_xdmf(dm, savg_data, field_name, visuname, 2, 0, iter) 
+      call write_visu_plane_binary_and_xdmf(dm, savg_data, field_name, visuname, 2, 0, iter, dm%io_mode) 
       deallocate(savg_data)
       return
     end if
@@ -111,7 +111,7 @@ contains
     if ((.not. px) .and. (.not. py) .and. pz) then
       allocate(savg_data(dm%dccc%xsz(1), dm%dccc%xsz(2), dm%dccc%xsz(3)))
       call mean_over_one_dir_to_plane(data_in, dm, ZDIR, savg_data)
-      call write_visu_plane_binary_and_xdmf(dm, savg_data, field_name, visuname, 3, 0, iter) 
+      call write_visu_plane_binary_and_xdmf(dm, savg_data, field_name, visuname, 3, 0, iter, dm%io_mode) 
       deallocate(savg_data)
       return
     end if
@@ -461,14 +461,16 @@ contains
       call read_one_3d_array(accc_tavg, trim(field_name), dm%idom, iter, dm%dccc)
       !
     case(STATS_WRITE)
-      call write_one_3d_array(accc_tavg, trim(field_name), dm%idom, iter, dm%dccc)
+      call write_one_3d_array(accc_tavg, trim(field_name), dm%idom, iter, dm%dccc, dm%io_mode)
       !
     case(STATS_TAVG)
       if(.not. present(opt_accc)) call Print_error_msg("Error. Need Time Averaged Value.")
       nstat = iter - dm%stat_istart + 1
+      if(nstat > 0) then
       ac = ONE / real(nstat, WP)
       am = real(nstat - 1, WP) / real(nstat, WP)
       accc_tavg = am * accc_tavg + ac * opt_accc
+      end if
       !
     case(STATS_VISU3)
       call write_visu_field_bin_and_xdmf(dm, accc_tavg, field_name, trim(opt_visnm), iter, 0)
@@ -840,10 +842,10 @@ contains
     if(nrank == 0) call Print_debug_start_msg("Initialise thermo statistics ...")
     !
     if(dm%stat_level > ISTATL0) then
-    allocate( tm%tavg_h   (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom)   ) )
-    allocate( tm%tavg_T   (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom)) )
-    tm%tavg_h  = ZERO
-    tm%tavg_T  = ZERO
+      allocate( tm%tavg_h   (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom)) )
+      allocate( tm%tavg_T   (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom)) )
+      tm%tavg_h  = ZERO
+      tm%tavg_T  = ZERO
     end if 
     if(dm%stat_level > ISTATL1) then
       allocate( tm%tavg_TT  (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom)) )
@@ -957,6 +959,7 @@ contains
     integer :: iter
     !
     iter = fl%iteration
+    if(iter < dm%stat_istart) return
 !----------------------------------------------------------------------------------------------------------
 !   preparation for u_i
 !----------------------------------------------------------------------------------------------------------
@@ -1039,31 +1042,31 @@ contains
 !----------------------------------------------------------------------------------------------------------
     !flow - shared
     if(dm%stat_level > ISTATL0) then
-    call run_stats_loops1 (STATS_TAVG, fl%tavg_pr,  't_avg_pr',  iter, dm, opt_accc1=fl%pres)
-    call run_stats_loops3 (STATS_TAVG, fl%tavg_u,   't_avg_u',   iter, dm, opt_acccn1=uccc)
+      call run_stats_loops1 (STATS_TAVG, fl%tavg_pr,  't_avg_pr',  iter, dm, opt_accc1=fl%pres)
+      call run_stats_loops3 (STATS_TAVG, fl%tavg_u,   't_avg_u',   iter, dm, opt_acccn1=uccc)
     end if
     if(dm%stat_level > ISTATL1) then
       call run_stats_loops6 (STATS_TAVG, fl%tavg_uu,  't_avg_uu',  iter, dm, opt_acccn1=uccc, opt_acccn2=uccc)
     end if
     if(dm%stat_level > ISTATL2) then
-    call run_stats_loops3 (STATS_TAVG, fl%tavg_pru, 't_avg_pru', iter, dm, opt_acccn1=uccc, opt_accc0=fl%pres)
-    call run_stats_loops10(STATS_TAVG, fl%tavg_uuu, 't_avg_uuu', iter, dm, opt_acccn1=uccc, opt_acccn2=uccc, opt_acccn3=uccc)
-    call run_stats_loops45(STATS_TAVG, fl%tavg_dudu,'t_avg_dudu',iter, dm, opt_acccnn1=dudx,opt_acccnn2=dudx)
+      call run_stats_loops3 (STATS_TAVG, fl%tavg_pru, 't_avg_pru', iter, dm, opt_acccn1=uccc, opt_accc0=fl%pres)
+      call run_stats_loops10(STATS_TAVG, fl%tavg_uuu, 't_avg_uuu', iter, dm, opt_acccn1=uccc, opt_acccn2=uccc, opt_acccn3=uccc)
+      call run_stats_loops45(STATS_TAVG, fl%tavg_dudu,'t_avg_dudu',iter, dm, opt_acccnn1=dudx,opt_acccnn2=dudx)
     end if
     ! flow - Favre 
     if(dm%is_thermo) then
     if(dm%stat_level > ISTATL0) then
-    call run_stats_loops1 (STATS_TAVG, fl%tavg_f,   't_avg_f',   iter, dm, opt_accc1=fl%dDens)
-    call run_stats_loops3 (STATS_TAVG, fl%tavg_fu,  't_avg_fu',  iter, dm, opt_acccn1=uccc, opt_accc0=fl%dDens)
+      call run_stats_loops1 (STATS_TAVG, fl%tavg_f,   't_avg_f',   iter, dm, opt_accc1=fl%dDens)
+      call run_stats_loops3 (STATS_TAVG, fl%tavg_fu,  't_avg_fu',  iter, dm, opt_acccn1=uccc, opt_accc0=fl%dDens)
       call run_stats_loops1 (STATS_TAVG, fl%tavg_fh,  't_avg_fh',  iter, dm, opt_accc1=fl%dDens, opt_accc0=tm%hEnth)
     end if
     if(dm%stat_level > ISTATL1) then
-    call run_stats_loops6 (STATS_TAVG, fl%tavg_fuu, 't_avg_fuu', iter, dm, opt_acccn1=uccc, opt_acccn2=uccc, opt_accc0=fl%dDens)
+      call run_stats_loops6 (STATS_TAVG, fl%tavg_fuu, 't_avg_fuu', iter, dm, opt_acccn1=uccc, opt_acccn2=uccc, opt_accc0=fl%dDens)
       call run_stats_loops3 (STATS_TAVG, fl%tavg_fuh, 't_avg_fuh', iter, dm, opt_acccn1=uccc, opt_accc0=tm%hEnth*fl%dDens)
     end if
     if(dm%stat_level > ISTATL2) then
-    call run_stats_loops10(STATS_TAVG, fl%tavg_fuuu,'t_avg_fuuu',iter, dm, opt_acccn1=uccc, opt_acccn2=uccc, opt_acccn3=uccc, opt_accc0=fl%dDens*tm%tTemp)
-    call run_stats_loops6 (STATS_TAVG, fl%tavg_fuuh,'t_avg_fuuh', iter, dm, opt_acccn1=uccc, opt_acccn2=uccc, opt_accc0=tm%hEnth*fl%dDens)
+      call run_stats_loops10(STATS_TAVG, fl%tavg_fuuu,'t_avg_fuuu', iter, dm, opt_acccn1=uccc, opt_acccn2=uccc, opt_acccn3=uccc, opt_accc0=fl%dDens*tm%tTemp)
+      call run_stats_loops6 (STATS_TAVG, fl%tavg_fuuh,'t_avg_fuuh', iter, dm, opt_acccn1=uccc, opt_acccn2=uccc, opt_accc0=tm%hEnth*fl%dDens)
     end if
    end if
     ! MHD
@@ -1095,6 +1098,7 @@ contains
     if(.not. dm%is_thermo) return
     !
     iter = tm%iteration
+    if(iter < dm%stat_istart) return
     ! preparation for dT/dx_j
     ! fbcx_4cc(:, :, :) = dm%fbcx_ftp(:, :, :)%t
     ! fbcy_c4c(:, :, :) = dm%fbcy_ftp(:, :, :)%t
@@ -1146,6 +1150,7 @@ contains
     
 
     iter = mh%iteration
+    if(iter < dm%stat_istart) return
     !----------------------------------------------------------------------------------------------------------
     !   preparation for j_i
     !----------------------------------------------------------------------------------------------------------
@@ -1195,6 +1200,7 @@ contains
     ! because they have different written freqence and to be used for restart as well.
     if(nrank == 0) call Print_debug_inline_msg("Writing flow statistics ...")
     iter = fl%iteration
+    if(iter < dm%stat_istart) return
     ! shared parameters
     if(dm%stat_level > ISTATL0) then
     call run_stats_loops1 (STATS_WRITE, fl%tavg_pr,  't_avg_pr',   iter, dm)
@@ -1247,6 +1253,8 @@ contains
     if(nrank == 0) call Print_debug_inline_msg("Writing thermo statistics ...")
     !
     iter = tm%iteration
+    if(iter < dm%stat_istart) return
+    ! todo: add bc. visualisation 
     if(dm%stat_level > ISTATL0) then 
     call run_stats_loops1 (STATS_WRITE, tm%tavg_h,    't_avg_h',    iter, dm)
     call run_stats_loops1 (STATS_WRITE, tm%tavg_T,    't_avg_T',    iter, dm)
@@ -1272,6 +1280,7 @@ contains
     if(.not. dm%is_mhd) return
     if(nrank == 0) call Print_debug_inline_msg("Writing mhd statistics ...")
     iter = mh%iteration
+    if(iter < dm%stat_istart) return
     if(dm%stat_level > ISTATL0) then
     call run_stats_loops1(STATS_WRITE, mh%tavg_e,  't_avg_e',  iter, dm)
     call run_stats_loops3(STATS_WRITE, mh%tavg_j,  't_avg_j',  iter, dm)
@@ -1301,6 +1310,7 @@ contains
 ! write time averaged 3d data
 !----------------------------------------------------------------------------------------------------------
     iter = fl%iteration
+    if(iter < dm%stat_istart) return
     visuname = 't_avg_flow'
     ! write xdmf header
     call write_visu_file_begin(dm, visuname, iter)
@@ -1402,6 +1412,7 @@ contains
 ! write time averaged 3d data
 !----------------------------------------------------------------------------------------------------------
     iter = tm%iteration
+    if(iter < dm%stat_istart) return
     visuname = 't_avg_thermo'
     ! write xdmf header
     if(nrank == 0) &
@@ -1456,6 +1467,7 @@ contains
 ! write time averaged 3d data
 !----------------------------------------------------------------------------------------------------------
     iter = mh%iteration
+    if(iter < dm%stat_istart) return
     visuname = 't_avg_mhd'
     ! write xdmf header
     if(nrank == 0) &

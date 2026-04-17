@@ -302,6 +302,9 @@ module parameters_constant_mod
   integer, parameter :: ISTATL0 = 0, & ! no statistics
                         ISTATL1 = 1, & ! first moment
                         ISTATL2 = 2    ! second moment
+  integer, parameter :: IO_MODE_OVERWRITE = 0, &  ! overwrite existing file
+                        IO_MODE_SKIP      = 1, &  ! skip write if file exists
+                        IO_MODE_RENAME    = 2     ! rename existing file
 !----------------------------------------------------------------------------------------------------------
 ! physical property
 !---------------------------------------------------------------------------------------------------------- 
@@ -396,33 +399,36 @@ module parameters_constant_mod
 end module parameters_constant_mod
 !==========================================================================================================
 module wtformat_mod
-  !use iso_fortran_env
   implicit none
+  private
+  public :: wrtfmt1i, wrtfmt1il, wrtfmt2i
+  public :: wrtfmt3i, wrtfmt4i, wrtfmt1r, wrtfmt2r, wrtfmt3r
+  public :: wrtfmt1ela, wrtfmt1el, wrtfmt1e, wrtfmt2e, wrtfmt3e
+  public :: wrtfmt2ae, wrtfmt2aea, wrtfmt1il1r
+  public :: wrtfmt3l, wrtfmt1l, wrtfmt2s, wrtfmt3s, wrtfmt1s
 
-  character(len = 19) :: wrtfmt1i   = '(2X, A40, 1I8.1 )'
-  character(len = 19) :: wrtfmt1il  = '(2X, A40, 1I15.1)'
-  character(len = 19) :: wrtfmt2i   = '(2X, A40, 2I8.1,)'
-  character(len = 19) :: wrtfmt2il  = '(2X, A40, 2I15.1)'
-  character(len = 19) :: wrtfmt3i   = '(2X, A40, 3I8.1 )'
-  character(len = 19) :: wrtfmt4i   = '(2X, A40, 4I8.1 )'
-  character(len = 19) :: wrtfmt1r   = '(2X, A40, 1F14.7)'
-  character(len = 19) :: wrtfmt2r   = '(2X, A40, 2F14.7)'
-  character(len = 19) :: wrtfmt3r   = '(2X, A40, 3F14.7)'
-  character(len = 22) :: wrtfmt1el  = '(2X, A40, 1ES23.15)'
-  character(len = 22) :: wrtfmt2el  = '(2X, A40, 2ES23.15)'
-  character(len = 22) :: wrtfmt1e   = '(2X, A40, 1ES16.8)'
-  character(len = 22) :: wrtfmt2e   = '(2X, A40, 2ES16.8)'
-  character(len = 22) :: wrtfmt3e   = '(2X, A40, 3ES16.8)'
-  character(len = 24) :: wrtfmt2ae  = '(2X, 2(A15, 1ES23.15))'
-  character(len = 26) :: wrtfmt1i1r = '(2X, A40, 1I8.1, 1F14.7)'
-  character(len = 26) :: wrtfmt1il1r= '(2X, A40, 1I15.1, 1F14.7)'
-  character(len = 26) :: wrtfmt2i2r = '(2X, A40, 2I8.1, 2F14.7)'
-  character(len = 26) :: wrtfmt4i2r = '(2X, A20, 4I8.1, 2F14.7)'
-  character(len = 15) :: wrtfmt3l   = '(2X, A40, 3L4)'
-  character(len = 15) :: wrtfmt1l   = '(2X, A40, 1L4)'
-  character(len = 17) :: wrtfmt2s   = '(2X, A40, 1A72)'
-  character(len = 17) :: wrtfmt3s   = '(2X, A40, 2A15)'
-  character(len = 9 ) :: wrtfmt1s   = '(2X, A80)'
+  ! Named write formats used across the codebase.
+  character(len=*), parameter :: wrtfmt1i    = '(2X, A40, I8)'
+  character(len=*), parameter :: wrtfmt1il   = '(2X, A40, I15)'
+  character(len=*), parameter :: wrtfmt2i    = '(2X, A40, 2I8)'
+  character(len=*), parameter :: wrtfmt3i    = '(2X, A40, 3I8)'
+  character(len=*), parameter :: wrtfmt4i    = '(2X, A40, 4I8)'
+  character(len=*), parameter :: wrtfmt1ela  = '(2X, A40,   ES16.8, F9.2, A)'
+  character(len=*), parameter :: wrtfmt1el   = '(2X, A40,   ES16.8)'
+  character(len=*), parameter :: wrtfmt1e    = '(2X, A40,   ES16.8)'
+  character(len=*), parameter :: wrtfmt2e    = '(2X, A40,  2ES16.8)'
+  character(len=*), parameter :: wrtfmt3e    = '(2X, A40,  3ES16.8)'
+  character(len=*), parameter :: wrtfmt2ae   = '(2X, 2(A15, ES16.8))'
+  character(len=*), parameter :: wrtfmt2aea  = '(2X, 2(A15, ES16.8, F9.2, A))'
+  character(len=*), parameter :: wrtfmt1r    = '(2X, A40,       F15.8)'
+  character(len=*), parameter :: wrtfmt2r    = '(2X, A40,      2F15.8)'
+  character(len=*), parameter :: wrtfmt3r    = '(2X, A40,      3F15.8)'
+  character(len=*), parameter :: wrtfmt1il1r = '(2X, A40, I15,  F15.8)'
+  character(len=*), parameter :: wrtfmt3l    = '(2X, A40, 3L4)'
+  character(len=*), parameter :: wrtfmt1l    = '(2X, A40, L4)'
+  character(len=*), parameter :: wrtfmt2s    = '(2X, A40, A72)'
+  character(len=*), parameter :: wrtfmt3s    = '(2X, A40, 2A15)'
+  character(len=*), parameter :: wrtfmt1s    = '(2X, A80)'
   
 
 end module wtformat_mod
@@ -481,6 +487,7 @@ module udf_type_mod
     logical :: is_read_xinlet
     logical :: is_mhd
     logical :: fft_skip_c2c(3)
+    integer :: io_mode
     integer :: idom                  ! domain id
     integer :: icase                 ! case id
     integer :: icoordinate           ! coordinate type
@@ -532,7 +539,6 @@ module udf_type_mod
     real(wp) :: fbcx_const(2, NBC) ! bc values, (5 variables, 2 sides)
     real(wp) :: fbcy_const(2, NBC) ! bc values, (5 variables, 2 sides)
     real(wp) :: fbcz_const(2, NBC) ! bc values, (5 variables, 2 sides)
-    real(WP) :: thermo_buffer_layer(2)
     real(WP) :: outlet_sponge_layer(2) ! outlet_sponge_layer(1) = length of sponge layer, outlet_sponge_layer(2) for min. Re_sponge (max. viscosity)
     
     real(wp) :: lxx
@@ -623,8 +629,8 @@ module udf_type_mod
     real(wp), allocatable :: fbcy_pr(:, :, :) ! variable bc
     real(wp), allocatable :: fbcz_pr(:, :, :) ! variable bc
 
-    real(wp), allocatable :: fbcx_qw(:, :, :) ! heat flux at wall x
-    real(wp), allocatable :: fbcy_qw(:, :, :) ! heat flux at wall y
+    real(wp), allocatable :: fbcx_qw(:, :, :) ! heat flux at wall x, qw_norm >0 = heating fluid
+    real(wp), allocatable :: fbcy_qw(:, :, :) ! heat flux at wall y, qw_norm <0 = cooling fluid
     real(wp), allocatable :: fbcz_qw(:, :, :) ! heat flux at wall z
 
     real(wp), allocatable :: fbcx_qx_outl1(:, :, :) ! variable bc
@@ -675,7 +681,7 @@ module udf_type_mod
     real(WP) :: fgravity(NDIM)
 
     real(wp) :: noiselevel
-    real(wp) :: mcon(4)
+    real(wp) :: mcon(3)
     real(wp) :: tt_mass_change
     real(wp) :: tt_kinetic_energy
 
@@ -772,6 +778,10 @@ module udf_type_mod
     integer  :: iteration
     integer  :: nIterThermoStart
     integer  :: nIterThermoEnd
+    logical  :: is_rhoh_compensated
+    logical  :: is_use_qw_ramp
+    integer  :: istt_qw_ramp
+    integer  :: iend_qw_ramp
     real(WP) :: ref_l0  ! dim
     real(WP) :: ref_T0  ! '0' means dimensional 
     real(WP) :: init_T0 ! dim
@@ -779,6 +789,7 @@ module udf_type_mod
     real(WP) :: phy_time
     real(WP) :: rPrRen
     real(WP) :: tt_enthalpy
+    real(WP) :: thermo_buffer_layer(2)
 
     real(WP), allocatable :: rhoh(:, :, :)
     real(WP), allocatable :: hEnth(:, :, :)
@@ -961,6 +972,11 @@ module math_mod
     module procedure cos_dp
   end interface cos_wp
 
+  interface acos_wp
+    module procedure acos_sp
+    module procedure acos_dp
+  end interface acos_wp
+
   interface cos_prec
     module procedure cos_sp
     module procedure cos_dp
@@ -1042,6 +1058,19 @@ contains
     real(kind = D15P), intent(in) :: r
     real(kind = D15P) :: d
     d = dcos ( r ) 
+  end function
+
+  ! acos
+  pure function acos_sp ( r ) result(d)
+    real(kind = S6P), intent(in) :: r
+    real(kind = S6P) :: d
+    d = acos ( r )
+  end function
+
+  pure function acos_dp ( r ) result (d)
+    real(kind = D15P), intent(in) :: r
+    real(kind = D15P) :: d
+    d = dacos ( r ) 
   end function
 
   ! tanh
@@ -1226,4 +1255,3 @@ contains
  end function
  
 end module flatten_index_mod
-

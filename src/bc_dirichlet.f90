@@ -427,7 +427,7 @@ contains
     use thermo_info_mod
     use decomp_2d
     type(t_domain), intent(inout) :: dm
-    type(t_thermo), intent(in)    :: tm
+    type(t_thermo), intent(inout)    :: tm
 
     real(WP) :: var1y(1:dm%np(2))
     real(WP), allocatable :: ac4c_ypencil(:, :, :), ac4c_xpencil(:, :, :)
@@ -456,26 +456,28 @@ contains
     nxst = 0
     nxen = 0
     ! ---- Clamp buffer lengths to domain length (if active) ----
-    if ( (dm%thermo_buffer_layer(1) - dm%h(1)) > MINP ) then
-      if (dm%thermo_buffer_layer(1) > dm%lxx) then
+    if ( (tm%thermo_buffer_layer(1) - dm%h(1)) > MINP ) then
+      if (tm%thermo_buffer_layer(1) > dm%lxx) then
         call Print_warning_msg("The inlet thermal buffer layer exceeds the domain length and has been reduced to 1/10 of the domain length.")
-        dm%thermo_buffer_layer(1) = dm%lxx / TEN
+        tm%thermo_buffer_layer(1) = dm%lxx / TEN
       end if
-      nxst = floor(dm%thermo_buffer_layer(1) * dm%h1r(1))
+      nxst = floor(tm%thermo_buffer_layer(1) * dm%h1r(1))
     end if
 
-    if ( (dm%thermo_buffer_layer(2) - dm%h(1)) > MINP ) then
-      if (dm%thermo_buffer_layer(2) > dm%lxx) then
+    if ( (tm%thermo_buffer_layer(2) - dm%h(1)) > MINP ) then
+      if (tm%thermo_buffer_layer(2) > dm%lxx) then
         call Print_warning_msg("The outlet thermal buffer layer exceeds the domain length and has been reduced to 1/10 of the domain length.")
-        dm%thermo_buffer_layer(2) = dm%lxx / TEN
+        tm%thermo_buffer_layer(2) = dm%lxx / TEN
       end if
-      nxen = floor(dm%thermo_buffer_layer(2) * dm%h1r(1))
+      nxen = floor(tm%thermo_buffer_layer(2) * dm%h1r(1))
     end if
     nxen1 = dm%nc(1) - nxen
     nxen2 = dm%nc(1)
     ! ---- Init decomp once if any buffer is active ----
     if ( nxst > 0 .or. nxen > 0 ) then
       call decomp_info_init(dm%nc(1), 4, dm%nc(3), dtmp)
+    else
+      dtmp = dm%dccc ! should not be used!  
     end if
     !
     do n = 1, 2 

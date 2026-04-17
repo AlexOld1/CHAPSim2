@@ -44,7 +44,11 @@ module boundary_conditions_mod
   public  :: allocate_fbc_flow   ! applied once only
   public  :: allocate_fbc_thermo ! applied once only
 
-  private :: axis_mirroring_interior_fbcy
+  !private :: axis_mirroring_interior_fbcy
+  private :: axis_mirror_even_fbcy
+  private :: axis_mirror_odd_fbcy
+  private :: build_axis_qyr_fbcy
+  private :: build_axis_qzr_fbcy
   public  :: update_fbcy_cc_flow_halo   ! for pipe only, applied every NS, cc for circle central point and var stored in xcx
   public  :: update_fbcy_cc_thermo_halo ! for pipe only, applied every NS, cc for circle central point and var stored in xcx
 
@@ -378,166 +382,402 @@ end function
     return
   end subroutine 
 
-
 !==========================================================================================================
-!==========================================================================================================
-  subroutine axis_mirroring_interior_fbcy(var_xpencil, fbcy, ksym, dtmp, is_qr_qrdr, is_reversed)
-    type(DECOMP_INFO), intent(in) :: dtmp
-    real(WP), intent(in) :: var_xpencil(:, :, :)
-    real(WP), intent(inout) :: fbcy(:, :, :)
-    integer, intent(in) :: ksym(:)
-    logical, intent(in), optional :: is_reversed
-    integer, intent(in), optional :: is_qr_qrdr
-
-    real(WP), dimension( dtmp%ysz(1), dtmp%ysz(2), dtmp%ysz(3) ) :: var_ypencil, var_ypencil1
-    real(WP), dimension( dtmp%zsz(1), dtmp%zsz(2), dtmp%zsz(3) ) :: var_zpencil, var_zpencil1
-
-    integer :: k
-    real(WP) :: sign
-
-    !if (dm%icase /= ICASE_PIPE .or. dm%icoordinate /= ICYLINDRICAL) return
-
-    sign = ONE
-!----------------------------------------------------------------------------------------------------------
-!   transpose from x to z
-!----------------------------------------------------------------------------------------------------------
-    if(present(is_reversed)) then
-      if(is_reversed) sign = - ONE
-    end if
-    call transpose_x_to_y(var_xpencil, var_ypencil, dtmp)
-    call transpose_y_to_z(var_ypencil, var_zpencil, dtmp)
-
-    do k = 1, dtmp%zsz(3)
-      var_zpencil1(:, :, k) = sign * var_zpencil(:, :, ksym(k))
-    end do
-    call transpose_z_to_y(var_zpencil1, var_ypencil1, dtmp)
-    fbcy(:, 1, :) = var_ypencil1(:, 1, :)
-    fbcy(:, 3, :) = var_ypencil1(:, 2, :)
-
-    if(present(is_qr_qrdr)) then ! for qy/r
-      if(is_qr_qrdr == 1) then
-        fbcy(:, 1, :) = ZERO
-      else if (is_qr_qrdr == 2) then
-        fbcy(:, 1, :) = (var_ypencil1(:, 2, :) + var_ypencil(:, 2, :)) * HALF ! multiple values
-      else
-      end if
-    end if
-
-    return
-  end subroutine 
-
-!==========================================================================================================
-!==========================================================================================================
-  subroutine update_fbcy_cc_flow_halo(fl, dm)  ! for cylindrical only
+  subroutine update_fbcy_cc_flow_halo(fl, dm)  ! cylindrical pipe axis treatment only
     use find_max_min_ave_mod
     use cylindrical_rn_mod
-    implicit none 
+    implicit none
+
     type(t_domain), intent(inout) :: dm
-    type(t_flow), intent(inout)      :: fl
+    type(t_flow),   intent(inout) :: fl
 
-    real(WP), dimension( dm%dcpc%xsz(1), dm%dcpc%xsz(2), dm%dcpc%xsz(3) ) :: acpc_xpencil
+    real(WP), dimension(dm%dcpc%xsz(1), dm%dcpc%xsz(2), dm%dcpc%xsz(3)) :: work_xpencil
 
-    ! Check if the case and coordinate system are valid
     if (dm%icase /= ICASE_PIPE .or. dm%icoordinate /= ICYLINDRICAL) return
-#ifdef DEBUG_STEPS
-    if(nrank == 0) &
-    call Print_debug_inline_msg('Update boundary conditions in y-direction for the centre of the pipe.')
-#endif
-!----------------------------------------------------------------------------------------------------------
-!   ! Update qx boundary condition in y-direction (interior cell center)
-!----------------------------------------------------------------------------------------------------------
-    if(dm%ibcy_qx(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_qx for the centre of the pipe.')
-    call axis_mirroring_interior_fbcy(fl%qx, dm%fbcy_qx, dm%knc_sym, dm%dpcc)
-!----------------------------------------------------------------------------------------------------------
-!   ! Update qy boundary conditions in y-direction (on nodes)
-!----------------------------------------------------------------------------------------------------------
-    if(dm%ibcy_qy(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_qy for the centre of the pipe.')
-    call axis_mirroring_interior_fbcy(fl%qy, dm%fbcy_qy, dm%knc_sym, dm%dcpc, &
-            is_qr_qrdr = 1, is_reversed = .true.)
-    ! Update qy/r boundary conditions in y-direction (on nodes)
-    acpc_xpencil = fl%qy
-    call multiple_cylindrical_rn(acpc_xpencil, dm%dcpc, dm%rpi, 1, IPENCIL(1)) ! qr/r
-    call axis_mirroring_interior_fbcy(acpc_xpencil, dm%fbcy_qyr, dm%knc_sym, dm%dcpc, &
-            is_qr_qrdr = 2, is_reversed = .true.)
-!----------------------------------------------------------------------------------------------------------
-!   Update qz boundary condition in y-direction (interior cell center)
-!----------------------------------------------------------------------------------------------------------
-    if(dm%ibcy_qz(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_qz for the centre of the pipe.') ! 
-    call axis_mirroring_interior_fbcy(fl%qz, dm%fbcy_qz, dm%knc_sym, dm%dccp, is_reversed = .true.) ! check
-    dm%fbcy_qzr(:, 1, :) = dm%fbcy_qz(:, 1, :) * dm%rci(1) ! interior, not at axis
-    dm%fbcy_qzr(:, 3, :) = dm%fbcy_qz(:, 3, :) * dm%rci(2)
-!----------------------------------------------------------------------------------------------------------
-!   Update pressure boundary condition in y-direction (interior)
-!----------------------------------------------------------------------------------------------------------
-    if(dm%ibcy_pr(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_pr for the centre of the pipe.') ! 
-    call axis_mirroring_interior_fbcy(fl%pres, dm%fbcy_pr, dm%knc_sym, dm%dccc)
-!----------------------------------------------------------------------------------------------------------
-!   Thermal variables
-!----------------------------------------------------------------------------------------------------------
+
+  ! qx : even symmetry across axis
+    if(dm%ibcy_qx(1) /= IBC_INTERIOR) &
+      call Print_error_msg('Error in ibcy_qx for the centre of the pipe.')
+    call axis_mirror_even_fbcy(fl%qx, dm%fbcy_qx, dm%knc_sym, dm%dpcc)
+
+  ! qy = ur * r: odd symmetry across axis
+  ! qyr = ur = qy / r : even regular quantity
+    if(dm%ibcy_qy(1) /= IBC_INTERIOR) &
+      call Print_error_msg('Error in ibcy_qy for the centre of the pipe.')
+    call axis_mirror_odd_fbcy(fl%qy, dm%fbcy_qy, dm%knc_sym, dm%dcpc)
+    call build_axis_qyr_fbcy(fl%qy, dm%fbcy_qyr, dm%knc_sym, dm%dcpc, dm%rpi)
+
+  ! qz : odd symmetry across axis
+  ! qzr = qz / r : even regular quantity
+    if(dm%ibcy_qz(1) /= IBC_INTERIOR) &
+      call Print_error_msg('Error in ibcy_qz for the centre of the pipe.')
+    call axis_mirror_odd_fbcy(fl%qz, dm%fbcy_qz, dm%knc_sym, dm%dccp)
+    call build_axis_qzr_fbcy(fl%qz, dm%fbcy_qzr, dm%fbcy_qz, dm%knc_sym, dm%dccp, dm%rci)
+
+  ! pressure : even symmetry across axis
+    if(dm%ibcy_pr(1) /= IBC_INTERIOR) &
+      call Print_error_msg('Error in ibcy_pr for the centre of the pipe.')
+    call axis_mirror_even_fbcy(fl%pres, dm%fbcy_pr, dm%knc_sym, dm%dccc)
+
+  ! thermal variables
     if(dm%is_thermo) then
-!----------------------------------------------------------------------------------------------------------
-!   ! Update gx boundary condition in y-direction (interior)
-!----------------------------------------------------------------------------------------------------------
-    if(dm%ibcy_qx(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_gx for the centre of the pipe.')
-    call axis_mirroring_interior_fbcy(fl%gx, dm%fbcy_gx, dm%knc_sym, dm%dpcc)
-!----------------------------------------------------------------------------------------------------------
-!   ! Update gy ang gy/r boundary condition in y-direction (interior)
-!----------------------------------------------------------------------------------------------------------
-    if(dm%ibcy_qy(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_gy for the centre of the pipe.')
-    call axis_mirroring_interior_fbcy(fl%gy, dm%fbcy_gy, dm%knc_sym, dm%dcpc, &
-            is_qr_qrdr = 1, is_reversed = .true.)
-!----------------------------------------------------------------------------------------------------------
-!   ! Update gz boundary condition in y-direction (interior)
-!----------------------------------------------------------------------------------------------------------
-    if(dm%ibcy_qz(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_qz for the centre of the pipe.') ! 
-    call axis_mirroring_interior_fbcy(fl%gz, dm%fbcy_gz, dm%knc_sym, dm%dccp, is_reversed = .true.)
-    !dm%fbcy_gzr(:, 1, :) = dm%fbcy_gz(:, 1, :) * dm%rci(1)
-    !dm%fbcy_gzr(:, 3, :) = dm%fbcy_gz(:, 3, :) * dm%rci(2)
+  ! gx : even symmetry
+      if(dm%ibcy_qx(1) /= IBC_INTERIOR) &
+        call Print_error_msg('Error in ibcy_gx for the centre of the pipe.')
+      call axis_mirror_even_fbcy(fl%gx, dm%fbcy_gx, dm%knc_sym, dm%dpcc)
+
+  ! gy : odd symmetry
+      if(dm%ibcy_qy(1) /= IBC_INTERIOR) &
+        call Print_error_msg('Error in ibcy_qy for the centre of the pipe.')
+      call axis_mirror_odd_fbcy(fl%gy, dm%fbcy_gy, dm%knc_sym, dm%dcpc)
+      !call build_axis_qyr_fbcy(fl%gy, dm%fbcy_gyr, dm%knc_sym, dm%dcpc, dm%rpi), not used!
+  
+  ! gz : odd symmetry
+      if(dm%ibcy_qz(1) /= IBC_INTERIOR) &
+        call Print_error_msg('Error in ibcy_gz for the centre of the pipe.')
+      call axis_mirror_odd_fbcy(fl%gz, dm%fbcy_gz, dm%knc_sym, dm%dccp)
+
     end if
 
-#ifdef DEBUG_STEPS
-    if(nrank == 0) &
-    call Print_debug_end_msg()
-#endif
     return
-  end subroutine
-
+  end subroutine update_fbcy_cc_flow_halo
 !==========================================================================================================
-!==========================================================================================================
-  subroutine update_fbcy_cc_thermo_halo(tm, dm)  ! for cylindrical only
+  subroutine update_fbcy_cc_thermo_halo(tm, dm)  ! cylindrical pipe axis treatment only
     use thermo_info_mod
     use find_max_min_ave_mod
-    use cylindrical_rn_mod
-    implicit none 
+    implicit none
+
     type(t_domain), intent(inout) :: dm
     type(t_thermo), intent(in)    :: tm
+
     real(WP) :: fbcy(dm%dccc%ysz(1), 4, dm%dccc%ysz(3))
 
-    ! Check if thermo is enabled and the case and coordinate system are valid
-    if (.not. dm%is_thermo .or. &
-        dm%icase /= ICASE_PIPE .or. &
-        dm%icoordinate /= ICYLINDRICAL) return
-    
-!----------------------------------------------------------------------------------------------------------
-!   ! Update thermo boundary condition in y-direction (interior)
-!----------------------------------------------------------------------------------------------------------
-    if(dm%ibcy_Tm(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_Tm for the centre of the pipe.') !
-    if(fluidparam%ipropertyState == IPROPERTY_TABLE) then 
+    ! Only for thermo-enabled cylindrical pipe cases
+    if (.not. dm%is_thermo) return
+    if (dm%icase /= ICASE_PIPE .or. dm%icoordinate /= ICYLINDRICAL) return
+
+  ! Thermodynamic primary variable at axis: even symmetry
+    if(dm%ibcy_Tm(1) /= IBC_INTERIOR) &
+      call Print_error_msg('Error in ibcy_Tm for the centre of the pipe.')
+
+  ! Table-based property update: use enthalpy
+    if(fluidparam%ipropertyState == IPROPERTY_TABLE) then
       fbcy = dm%fbcy_ftp%h
-      call axis_mirroring_interior_fbcy(tm%hEnth, fbcy, dm%knc_sym, dm%dccc)
+      call axis_mirror_even_fbcy(tm%hEnth, fbcy, dm%knc_sym, dm%dccc)
       dm%fbcy_ftp%h = fbcy
       call ftp_refresh_thermal_properties_from_H_3Dftp(dm%fbcy_ftp)
     end if
 
-    if(fluidparam%ipropertyState == IPROPERTY_FUNCS) then 
+  ! Function-based property update: use temperature
+    if(fluidparam%ipropertyState == IPROPERTY_FUNCS) then
       fbcy = dm%fbcy_ftp%t
-      call axis_mirroring_interior_fbcy(tm%tTemp, fbcy, dm%knc_sym, dm%dccc)
+      call axis_mirror_even_fbcy(tm%tTemp, fbcy, dm%knc_sym, dm%dccc)
       dm%fbcy_ftp%t = fbcy
       call ftp_refresh_thermal_properties_from_T_undim_3Dftp(dm%fbcy_ftp)
     end if
 
     return
-  end subroutine
+  end subroutine update_fbcy_cc_thermo_halo
+!==========================================================================================================
+  !==========================================================================================================
+  !==========================================================================================================
+  subroutine axis_mirror_even_fbcy(var_xpencil, fbcy, ksym, dtmp)
+    type(DECOMP_INFO), intent(in) :: dtmp
+    real(WP), intent(in)          :: var_xpencil(:, :, :)
+    real(WP), intent(inout)       :: fbcy(:, :, :)
+    integer, intent(in)           :: ksym(:)
+
+    real(WP), dimension(dtmp%ysz(1), dtmp%ysz(2), dtmp%ysz(3)) :: var_ypencil, var_ypencil_sym
+    real(WP), dimension(dtmp%zsz(1), dtmp%zsz(2), dtmp%zsz(3)) :: var_zpencil, var_zpencil_sym
+
+    integer :: k
+
+    call transpose_x_to_y(var_xpencil, var_ypencil, dtmp)
+    call transpose_y_to_z(var_ypencil, var_zpencil, dtmp)
+
+    do k = 1, dtmp%zsz(3)
+      var_zpencil_sym(:, :, k) = var_zpencil(:, :, ksym(k))
+    end do
+
+    call transpose_z_to_y(var_zpencil_sym, var_ypencil_sym, dtmp)
+
+    fbcy(:, 1, :) = var_ypencil_sym(:, 1, :)
+    fbcy(:, 3, :) = var_ypencil_sym(:, 2, :)
+
+    return
+  end subroutine axis_mirror_even_fbcy
+  !==========================================================================================================
+
+
+  !==========================================================================================================
+  subroutine axis_mirror_odd_fbcy(var_xpencil, fbcy, ksym, dtmp)
+    type(DECOMP_INFO), intent(in) :: dtmp
+    real(WP), intent(in)          :: var_xpencil(:, :, :)
+    real(WP), intent(inout)       :: fbcy(:, :, :)
+    integer, intent(in)           :: ksym(:)
+
+    real(WP), dimension(dtmp%ysz(1), dtmp%ysz(2), dtmp%ysz(3)) :: var_ypencil, var_ypencil_sym
+    real(WP), dimension(dtmp%zsz(1), dtmp%zsz(2), dtmp%zsz(3)) :: var_zpencil, var_zpencil_sym
+
+    integer :: k
+
+    call transpose_x_to_y(var_xpencil, var_ypencil, dtmp)
+    call transpose_y_to_z(var_ypencil, var_zpencil, dtmp)
+
+    do k = 1, dtmp%zsz(3)
+      var_zpencil_sym(:, :, k) = - var_zpencil(:, :, ksym(k))
+    end do
+
+    call transpose_z_to_y(var_zpencil_sym, var_ypencil_sym, dtmp)
+
+    fbcy(:, 1, :) = var_ypencil_sym(:, 1, :)
+    fbcy(:, 3, :) = var_ypencil_sym(:, 2, :)
+
+    ! odd quantity must vanish at the axis
+    fbcy(:, 1, :) = ZERO
+
+    return
+  end subroutine axis_mirror_odd_fbcy
+  !==========================================================================================================
+
+
+!==========================================================================================================
+  subroutine build_axis_qyr_fbcy(qy_xpencil, fbcy_qyr, ksym, dtmp, rpi)
+    ! Build halo values for qyr = qy / r = ur, treated as an even regular quantity.
+    ! Current implementation keeps the practical behaviour of your original code,
+    ! but isolates it from the generic mirroring routine.
+    use cylindrical_rn_mod
+    type(DECOMP_INFO), intent(in) :: dtmp
+    real(WP), intent(in)          :: qy_xpencil(:, :, :)
+    real(WP), intent(inout)       :: fbcy_qyr(:, :, :)
+    integer, intent(in)           :: ksym(:)
+    real(WP), intent(in)          :: rpi(:)
+
+    real(WP), dimension(dtmp%xsz(1), dtmp%xsz(2), dtmp%xsz(3)) :: qyr_xpencil
+    real(WP), dimension(dtmp%ysz(1), dtmp%ysz(2), dtmp%ysz(3)) :: qyr_ypencil, qyr_ypencil_sym
+    real(WP), dimension(dtmp%zsz(1), dtmp%zsz(2), dtmp%zsz(3)) :: qyr_zpencil, qyr_zpencil_sym
+
+    integer :: k
+
+    qyr_xpencil = qy_xpencil
+    call multiple_cylindrical_rn(qyr_xpencil, dtmp, rpi, 1, IPENCIL(1))   ! qyr = qy / r
+
+    call transpose_x_to_y(qyr_xpencil, qyr_ypencil, dtmp)
+    call transpose_y_to_z(qyr_ypencil, qyr_zpencil, dtmp)
+
+    do k = 1, dtmp%zsz(3)
+      qyr_zpencil_sym(:, :, k) = qyr_zpencil(:, :, ksym(k))
+    end do
+
+    call transpose_z_to_y(qyr_zpencil_sym, qyr_ypencil_sym, dtmp)
+
+    fbcy_qyr(:, 1, :) = qyr_ypencil_sym(:, 1, :)
+    fbcy_qyr(:, 3, :) = qyr_ypencil_sym(:, 2, :)
+
+    ! Axis value of qyr=ur is a regular limit quantity.
+    ! Keep current practical averaging from neighbouring interior values.
+    fbcy_qyr(:, 1, :) = HALF * (qyr_ypencil_sym(:, 2, :) + qyr_ypencil(:, 2, :))
+
+    return
+  end subroutine build_axis_qyr_fbcy
+  !==========================================================================================================
+
+
+!==========================================================================================================
+  subroutine build_axis_qzr_fbcy(qz_xpencil, fbcy_qzr, fbcy_qz, ksym, dtmp, rci)
+    ! Build halo values for qzr = qz / r, treated as an even regular quantity.
+    ! This keeps your current low-order practical treatment, but isolates it so it
+    ! can later be replaced by a dedicated axis-limit stencil.
+    type(DECOMP_INFO), intent(in) :: dtmp
+    real(WP), intent(in)          :: qz_xpencil(:, :, :)
+    real(WP), intent(inout)       :: fbcy_qzr(:, :, :)
+    real(WP), intent(in)          :: fbcy_qz(:, :, :)
+    integer, intent(in)           :: ksym(:)
+    real(WP), intent(in)          :: rci(:)
+
+    real(WP), dimension(dtmp%ysz(1), dtmp%ysz(2), dtmp%ysz(3)) :: qz_ypencil, qz_ypencil_sym
+    real(WP), dimension(dtmp%zsz(1), dtmp%zsz(2), dtmp%zsz(3)) :: qz_zpencil, qz_zpencil_sym
+    
+    integer :: k
+
+    call transpose_x_to_y(qz_xpencil, qz_ypencil, dtmp)
+    call transpose_y_to_z(qz_ypencil, qz_zpencil, dtmp)
+
+    do k = 1, dtmp%zsz(3)
+      qz_zpencil_sym(:, :, k) = qz_zpencil(:, :, ksym(k))
+    end do
+
+    call transpose_z_to_y(qz_zpencil_sym, qz_ypencil_sym, dtmp)
+
+    ! qzr = qz / r is even and finite at the axis.
+    ! Off-axis halo locations follow mirrored values divided by local r.
+    ! The axis plane itself is approximated from the first off-axis mirrored value.
+    fbcy_qzr(:, 1, :) = qz_ypencil_sym(:, 2, :) * rci(1)
+    fbcy_qzr(:, 3, :) = fbcy_qz(:, 3, :)      * rci(2)
+
+    return
+  end subroutine build_axis_qzr_fbcy
+  !==========================================================================================================
+
+! !==========================================================================================================
+! !==========================================================================================================
+!   subroutine axis_mirroring_interior_fbcy(var_xpencil, fbcy, ksym, dtmp, is_qr_qrdr, is_reversed)
+!     type(DECOMP_INFO), intent(in) :: dtmp
+!     real(WP), intent(in) :: var_xpencil(:, :, :)
+!     real(WP), intent(inout) :: fbcy(:, :, :)
+!     integer, intent(in) :: ksym(:)
+!     logical, intent(in), optional :: is_reversed
+!     integer, intent(in), optional :: is_qr_qrdr
+
+!     real(WP), dimension( dtmp%ysz(1), dtmp%ysz(2), dtmp%ysz(3) ) :: var_ypencil, var_ypencil1
+!     real(WP), dimension( dtmp%zsz(1), dtmp%zsz(2), dtmp%zsz(3) ) :: var_zpencil, var_zpencil1
+
+!     integer :: k
+!     real(WP) :: sign
+
+!     !if (dm%icase /= ICASE_PIPE .or. dm%icoordinate /= ICYLINDRICAL) return
+
+!     sign = ONE
+! !----------------------------------------------------------------------------------------------------------
+! !   transpose from x to z
+! !----------------------------------------------------------------------------------------------------------
+!     if(present(is_reversed)) then
+!       if(is_reversed) sign = - ONE
+!     end if
+!     call transpose_x_to_y(var_xpencil, var_ypencil, dtmp)
+!     call transpose_y_to_z(var_ypencil, var_zpencil, dtmp)
+
+!     do k = 1, dtmp%zsz(3)
+!       var_zpencil1(:, :, k) = sign * var_zpencil(:, :, ksym(k))
+!     end do
+!     call transpose_z_to_y(var_zpencil1, var_ypencil1, dtmp)
+!     fbcy(:, 1, :) = var_ypencil1(:, 1, :)
+!     fbcy(:, 3, :) = var_ypencil1(:, 2, :)
+
+!     if(present(is_qr_qrdr)) then ! for qy/r
+!       if(is_qr_qrdr == 1) then
+!         fbcy(:, 1, :) = ZERO
+!       else if (is_qr_qrdr == 2) then
+!         fbcy(:, 1, :) = (var_ypencil1(:, 2, :) + var_ypencil(:, 2, :)) * HALF ! multiple values
+!       else
+!       end if
+!     end if
+
+!     return
+!   end subroutine 
+
+! !==========================================================================================================
+! !==========================================================================================================
+!   subroutine update_fbcy_cc_flow_halo(fl, dm)  ! for cylindrical only
+!     use find_max_min_ave_mod
+!     use cylindrical_rn_mod
+!     implicit none 
+!     type(t_domain), intent(inout) :: dm
+!     type(t_flow), intent(inout)      :: fl
+
+!     real(WP), dimension( dm%dcpc%xsz(1), dm%dcpc%xsz(2), dm%dcpc%xsz(3) ) :: acpc_xpencil
+
+!     ! Check if the case and coordinate system are valid
+!     if (dm%icase /= ICASE_PIPE .or. dm%icoordinate /= ICYLINDRICAL) return
+! #ifdef DEBUG_STEPS
+!     if(nrank == 0) &
+!     call Print_debug_inline_msg('Update boundary conditions in y-direction for the centre of the pipe.')
+! #endif
+! !----------------------------------------------------------------------------------------------------------
+! !   ! Update qx boundary condition in y-direction (interior cell center)
+! !----------------------------------------------------------------------------------------------------------
+!     if(dm%ibcy_qx(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_qx for the centre of the pipe.')
+!     call axis_mirroring_interior_fbcy(fl%qx, dm%fbcy_qx, dm%knc_sym, dm%dpcc)
+! !----------------------------------------------------------------------------------------------------------
+! !   ! Update qy boundary conditions in y-direction (on nodes)
+! !----------------------------------------------------------------------------------------------------------
+!     if(dm%ibcy_qy(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_qy for the centre of the pipe.')
+!     call axis_mirroring_interior_fbcy(fl%qy, dm%fbcy_qy, dm%knc_sym, dm%dcpc, &
+!             is_qr_qrdr = 1, is_reversed = .true.)
+!     ! Update qy/r boundary conditions in y-direction (on nodes)
+!     acpc_xpencil = fl%qy
+!     call multiple_cylindrical_rn(acpc_xpencil, dm%dcpc, dm%rpi, 1, IPENCIL(1)) ! qr/r
+!     call axis_mirroring_interior_fbcy(acpc_xpencil, dm%fbcy_qyr, dm%knc_sym, dm%dcpc, &
+!             is_qr_qrdr = 2, is_reversed = .true.)
+! !----------------------------------------------------------------------------------------------------------
+! !   Update qz boundary condition in y-direction (interior cell center)
+! !----------------------------------------------------------------------------------------------------------
+!     if(dm%ibcy_qz(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_qz for the centre of the pipe.') ! 
+!     call axis_mirroring_interior_fbcy(fl%qz, dm%fbcy_qz, dm%knc_sym, dm%dccp, is_reversed = .true.) ! check
+!     dm%fbcy_qzr(:, 1, :) = dm%fbcy_qz(:, 1, :) * dm%rci(1) ! interior, not at axis
+!     dm%fbcy_qzr(:, 3, :) = dm%fbcy_qz(:, 3, :) * dm%rci(2)
+! !----------------------------------------------------------------------------------------------------------
+! !   Update pressure boundary condition in y-direction (interior)
+! !----------------------------------------------------------------------------------------------------------
+!     if(dm%ibcy_pr(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_pr for the centre of the pipe.') ! 
+!     call axis_mirroring_interior_fbcy(fl%pres, dm%fbcy_pr, dm%knc_sym, dm%dccc)
+! !----------------------------------------------------------------------------------------------------------
+! !   Thermal variables
+! !----------------------------------------------------------------------------------------------------------
+!     if(dm%is_thermo) then
+! !----------------------------------------------------------------------------------------------------------
+! !   ! Update gx boundary condition in y-direction (interior)
+! !----------------------------------------------------------------------------------------------------------
+!     if(dm%ibcy_qx(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_gx for the centre of the pipe.')
+!     call axis_mirroring_interior_fbcy(fl%gx, dm%fbcy_gx, dm%knc_sym, dm%dpcc)
+! !----------------------------------------------------------------------------------------------------------
+! !   ! Update gy ang gy/r boundary condition in y-direction (interior)
+! !----------------------------------------------------------------------------------------------------------
+!     if(dm%ibcy_qy(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_gy for the centre of the pipe.')
+!     call axis_mirroring_interior_fbcy(fl%gy, dm%fbcy_gy, dm%knc_sym, dm%dcpc, &
+!             is_qr_qrdr = 1, is_reversed = .true.)
+! !----------------------------------------------------------------------------------------------------------
+! !   ! Update gz boundary condition in y-direction (interior)
+! !----------------------------------------------------------------------------------------------------------
+!     if(dm%ibcy_qz(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_qz for the centre of the pipe.') ! 
+!     call axis_mirroring_interior_fbcy(fl%gz, dm%fbcy_gz, dm%knc_sym, dm%dccp, is_reversed = .true.)
+!     !dm%fbcy_gzr(:, 1, :) = dm%fbcy_gz(:, 1, :) * dm%rci(1)
+!     !dm%fbcy_gzr(:, 3, :) = dm%fbcy_gz(:, 3, :) * dm%rci(2)
+!     end if
+
+! #ifdef DEBUG_STEPS
+!     if(nrank == 0) &
+!     call Print_debug_end_msg()
+! #endif
+!     return
+!   end subroutine
+
+! !==========================================================================================================
+! !==========================================================================================================
+!   subroutine update_fbcy_cc_thermo_halo(tm, dm)  ! for cylindrical only
+!     use thermo_info_mod
+!     use find_max_min_ave_mod
+!     use cylindrical_rn_mod
+!     implicit none 
+!     type(t_domain), intent(inout) :: dm
+!     type(t_thermo), intent(in)    :: tm
+!     real(WP) :: fbcy(dm%dccc%ysz(1), 4, dm%dccc%ysz(3))
+
+!     ! Check if thermo is enabled and the case and coordinate system are valid
+!     if (.not. dm%is_thermo .or. &
+!         dm%icase /= ICASE_PIPE .or. &
+!         dm%icoordinate /= ICYLINDRICAL) return
+    
+! !----------------------------------------------------------------------------------------------------------
+! !   ! Update thermo boundary condition in y-direction (interior)
+! !----------------------------------------------------------------------------------------------------------
+!     if(dm%ibcy_Tm(1) /= IBC_INTERIOR) call Print_error_msg('Error in ibcy_Tm for the centre of the pipe.') !
+!     if(fluidparam%ipropertyState == IPROPERTY_TABLE) then 
+!       fbcy = dm%fbcy_ftp%h
+!       call axis_mirroring_interior_fbcy(tm%hEnth, fbcy, dm%knc_sym, dm%dccc)
+!       dm%fbcy_ftp%h = fbcy
+!       call ftp_refresh_thermal_properties_from_H_3Dftp(dm%fbcy_ftp)
+!     end if
+
+!     if(fluidparam%ipropertyState == IPROPERTY_FUNCS) then 
+!       fbcy = dm%fbcy_ftp%t
+!       call axis_mirroring_interior_fbcy(tm%tTemp, fbcy, dm%knc_sym, dm%dccc)
+!       dm%fbcy_ftp%t = fbcy
+!       call ftp_refresh_thermal_properties_from_T_undim_3Dftp(dm%fbcy_ftp)
+!     end if
+
+!     return
+!   end subroutine
 
 !==========================================================================================================
 ! to calculate boundary during calculation from primary boundary
@@ -847,22 +1087,37 @@ end function
 
 !==========================================================================================================
 !==========================================================================================================
-  subroutine get_fbcx_iTh(ibc, dm, fbc)
+  subroutine get_fbcx_iTh(ibc, dm, fbc, tm, opt_k)
     use udf_type_mod
     use parameters_constant_mod
+    use thermo_info_mod
     implicit none
     integer, intent(in) :: ibc(2)
     type(t_domain), intent(in) :: dm
+    type(t_thermo), intent(in) :: tm
+    real(WP), intent(in), optional :: opt_k(:, :, :)
     real(WP), intent(out) :: fbc(4, dm%dpcc%xsz(2), dm%dpcc%xsz(3))
 
     integer :: n
+    real(WP), dimension(4, dm%dpcc%xsz(2), dm%dpcc%xsz(3) ) :: fbcx_4cc
+    real(WP) :: framp
+
+    fbcx_4cc = ONE
+    framp = ONE
+    if(ibc(1) == IBC_NEUMANN .or. &
+       ibc(2) == IBC_NEUMANN) then
+      if(.not. present(opt_k)) &
+      call Print_error_msg("opt_k is required for Neumann BC in get_fbcx_iTh.")
+      call extract_dirichlet_fbcx(fbcx_4cc, opt_k, dm%dpcc)
+      if(tm%is_use_qw_ramp) framp = get_qw_ramp_factor(tm%iteration, tm%istt_qw_ramp, tm%iend_qw_ramp)
+    end if
 
     fbc = ZERO
     do n = 1, 2
       if(ibc(n) == IBC_DIRICHLET) then    
         fbc(n, :, :) = dm%fbcx_ftp(n, :, :)%t
       else if(ibc(n) == IBC_NEUMANN) then
-        fbc(n, :, :) = dm%fbcx_qw(n, :, :)
+        fbc(n, :, :) = -dm%fbcx_qw(n, :, :)/fbcx_4cc(n, :, :) * framp
       else
         fbc(n, :, :) = ZERO
       end if
@@ -870,22 +1125,38 @@ end function
     return
   end subroutine 
 !==========================================================================================================
-  subroutine get_fbcy_iTh(ibc, dm, fbc)
+  subroutine get_fbcy_iTh(ibc, dm, fbc, tm, opt_k)
     use udf_type_mod
     use parameters_constant_mod
+    use thermo_info_mod
     implicit none
     integer, intent(in) :: ibc(2)
     type(t_domain), intent(in) :: dm
+    type(t_thermo), intent(in) :: tm
+    real(WP), intent(in), optional :: opt_k(:, :, :)
     real(WP), intent(out) :: fbc(dm%dcpc%ysz(1), 4, dm%dcpc%ysz(3))
 
     integer :: n
+    real(WP), dimension( dm%dcpc%ysz(1), 4, dm%dcpc%ysz(3) ) :: fbcy_c4c
+    real(WP) :: framp
+
+    fbcy_c4c = ONE
+    framp = ONE
+    if(ibc(1) == IBC_NEUMANN .or. &
+       ibc(2) == IBC_NEUMANN) then
+      if(.not. present(opt_k)) &
+      call Print_error_msg("opt_k is required for Neumann BC in get_fbcy_iTh.")
+      call extract_dirichlet_fbcy(fbcy_c4c, opt_k, dm%dcpc, dm)
+      if(tm%is_use_qw_ramp) framp = get_qw_ramp_factor(tm%iteration, tm%istt_qw_ramp, tm%iend_qw_ramp)
+    end if
 
     fbc = ZERO
     do n = 1, 2
       if(ibc(n) == IBC_DIRICHLET) then    
         fbc(:, n, :) = dm%fbcy_ftp(:, n, :)%t
       else if(ibc(n) == IBC_NEUMANN) then
-        fbc(:, n, :) = dm%fbcy_qw(:, n, :)
+        if(n==1) fbc(:, n, :) = -dm%fbcy_qw(:, n, :) / fbcy_c4c(:, n, :) * framp
+        if(n==2) fbc(:, n, :) =  dm%fbcy_qw(:, n, :) / fbcy_c4c(:, n, :) * framp
       else
         fbc(:, n, :) = ZERO
       end if
@@ -893,22 +1164,37 @@ end function
     return
   end subroutine 
 !==========================================================================================================
-  subroutine get_fbcz_iTh(ibc, dm, fbc)
+  subroutine get_fbcz_iTh(ibc, dm, fbc, tm, opt_k)
     use udf_type_mod
     use parameters_constant_mod
+    use thermo_info_mod
     implicit none
     integer, intent(in) :: ibc(2)
     type(t_domain), intent(in) :: dm
+    type(t_thermo), intent(in) :: tm
+    real(WP), intent(in), optional :: opt_k(:, :, :)
     real(WP), intent(out) :: fbc(dm%dccp%zsz(1), dm%dccp%zsz(2), 4)
 
     integer :: n
+    real(WP), dimension( dm%dccp%zsz(1), dm%dccp%zsz(2), 4 ) :: fbcz_cc4
+    real(WP) :: framp
+
+    fbcz_cc4 = ONE
+    framp = ONE
+    if(ibc(1) == IBC_NEUMANN .or. &
+       ibc(2) == IBC_NEUMANN) then
+      if(.not. present(opt_k)) &
+      call Print_error_msg("opt_k is required for Neumann BC in get_fbcz_iTh.")
+      call extract_dirichlet_fbcz(fbcz_cc4, opt_k, dm%dccp)
+      if(tm%is_use_qw_ramp) framp = get_qw_ramp_factor(tm%iteration, tm%istt_qw_ramp, tm%iend_qw_ramp)
+    end if
 
     fbc = ZERO
     do n = 1, 2
       if(ibc(n) == IBC_DIRICHLET) then    
         fbc(:, :, n) = dm%fbcz_ftp(:, :, n)%t
       else if(ibc(n) == IBC_NEUMANN) then
-        fbc(:, :, n) = dm%fbcz_qw(:, :, n)
+        fbc(:, :, n) = -dm%fbcz_qw(:, :, n) / fbcz_cc4(:, :, n) * framp
       else
         fbc(:, :, n) = ZERO
       end if

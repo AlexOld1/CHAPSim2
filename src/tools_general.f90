@@ -45,7 +45,7 @@ contains
     implicit none
     character(len=*), optional, intent(IN) :: msg
 
-    write (*, *) "=========================================================================================================="
+    write (*, *) "======================================================================"
     if(present(msg)) write (*, *) msg
 
     return
@@ -448,13 +448,148 @@ module random_number_generation_mod
   use precision_mod
   implicit none
   private
-  public :: initialise_random_number
-  public :: Generate_rvec_random
-  public :: Generate_r_random
-  public :: lcg_random
+  !
+  private :: initialise_random_number
+  private :: Generate_rvec_random
+  private :: Generate_r_random
+  private :: lcg_random
+  !
+  public :: generate_random11_fortran
+  public :: generate_random11_stateless_hash
+  public :: generate_random11_LCG_hash
+  public :: generate_random11_mixhash
 
 
 contains
+
+  subroutine generate_random11_fortran (i, j, k, n, nx, ny, rd)
+    use parameters_constant_mod, only: WP, ONE
+    use flatten_index_mod
+    implicit none
+    integer, intent(in) :: i, j, k, n, nx, ny
+    real(wp), intent(out) :: rd
+    integer, parameter :: seed0 = 123456
+    integer :: seed
+
+    seed = flatten_index(i, j, k, nx, ny + seed0 * n)
+    call initialise_random_number ( seed )
+    call Generate_r_random( -ONE, ONE, rd)
+
+    return
+  end subroutine generate_random11_fortran
+
+
+  subroutine generate_random11_stateless_hash (i, j, k, n, rd)
+    use parameters_constant_mod, only: WP, ONE, TWO
+    use iso_fortran_env, only : int32, int64
+    use math_mod
+    implicit none
+    integer, intent(in) :: i, j, k, n
+    real(wp), intent(out) :: rd
+    !
+    real(WP), parameter :: hash_a = 12.9898_wp
+    real(WP), parameter :: hash_b = 78.233_wp
+    real(WP), parameter :: hash_c = 37.719_wp
+    real(WP), parameter :: hash_d = 11.131_wp
+    real(WP), parameter :: hash_s = 43758.5453123_wp
+    real(WP) :: rnd
+
+    ! Stateless index hash for GPU: avoids seed-neighbor correlation striping.
+    ! sin_wp with scaling may be sensitive across platforms/compilers
+    rnd = sin_wp( real(i, WP) * hash_a + real(j, WP) * hash_b + &
+                  real(k, WP) * hash_c + real(n, WP) * hash_d ) * hash_s
+    rnd = rnd - real(floor(rnd), WP)
+    rd = TWO * rnd - ONE
+    return 
+  end subroutine generate_random11_stateless_hash
+
+  subroutine generate_random11_LCG_hash (i, j, k, n, rd)
+    use iso_fortran_env, only : int32, int64
+    implicit none
+    integer, intent(in) :: i, j, k, n
+    real(wp), intent(out) :: rd
+    integer(int64), parameter :: seed0 = 123456_int64
+    integer(int64), parameter :: h1 = 73856093_int64
+    integer(int64), parameter :: h2 = 19349663_int64
+    integer(int64), parameter :: h3 = 83492791_int64
+    integer(int64), parameter :: h4 = 2654435761_int64
+    integer(int64) :: seed64
+    integer(int32) :: seed_lcg
+    real(WP) :: rnd
+
+    ! Integer-only stateless hash (CPU/GPU consistent), then whiten via LCG.
+    seed64 = int(i,int64) * h1 + &
+             int(j,int64) * h2 + &
+             int(k,int64) * h3 + &
+             int(n,int64) * h4 + &
+             int(seed0,int64)
+    seed_lcg = int(iand(seed64, z'7FFFFFFF'), int32)
+    if (seed_lcg == 0_int32) seed_lcg = 1_int32
+    call lcg_random(seed_lcg, rd)
+    return 
+  end subroutine generate_random11_LCG_hash
+
+
+  subroutine generate_random11_mixhash (i, j, k, n, rd)
+    use parameters_constant_mod, only: WP, ONE, TWO
+    use iso_fortran_env, only : int32, int64
+    implicit none
+    integer, intent(in) :: i, j, k, n
+    real(wp), intent(out) :: rd
+
+    integer(int64) :: x
+    real(WP) :: rnd
+
+    x = int(i, int64)
+    x = ieor(x, ishft(int(j, int64), 21))
+    x = ieor(x, ishft(int(k, int64), 42))
+    x = ieor(x, ishft(int(n ,int64), 10))
+
+    ! 64-bit mix (splitmix64 style)
+    x = x + int(z'9E3779B97F4A7C15', int64)
+    x = ieor(x, ishft(x, -30))
+    x = x * int(z'BF58476D1CE4E5B9', int64)
+    x = ieor(x, ishft(x, -27))
+    x = x * int(z'94D049BB133111EB', int64)
+    x = ieor(x, ishft(x, -31))
+
+    rnd = real(iand(x, z'7FFFFFFFFFFFFFFF'), wp) / &
+          real(huge(1_int64), wp)
+
+    rd = TWO*rnd - ONE
+
+    return
+  end subroutine generate_random11_mixhash
+
+
+! Method 1: using fortran random number generator
+!            ii = i
+!            seed = flatten_index(ii, jj, kk, dtmp%xsz(1), dtmp%ysz(2)) + seed0 * n
+!            call initialise_random_number ( seed )
+!            call Generate_r_random( -ONE, ONE, rd)
+
+            ! Method 2: Stateless index hash for GPU: avoids seed-neighbor correlation striping.
+            ! sin_wp with scaling may be sensitive across platforms/compilers
+!            rnd = sin_wp( real(ii, WP) * hash_a + real(jj, WP) * hash_b + &
+!                          real(kk, WP) * hash_c + real(n, WP) * hash_d ) * hash_s
+!            rnd = rnd - real(floor(rnd), WP)
+!            rd = TWO * rnd - ONE
+
+            ! Method 3: Integer-only stateless hash (CPU/GPU consistent), then whiten via LCG.
+!            seed64 = int(ii,int64)*h1 + int(jj,int64)*h2 + &
+!                     int(kk,int64)*h3 + int(n,int64)*h4 + &
+!                     int(seed0,int64)
+!            seed_lcg = int(iand(seed64, z'7FFFFFFF'), int32)
+!            if (seed_lcg == 0_int32) seed_lcg = 1_int32
+!            call lcg_random(seed_lcg, rd)
+!            call lcg_random(seed_lcg, rd)
+!            call lcg_random(seed_lcg, rd)
+
+            ! Method 4: 64-bit XOR / Mix Hash (Stateless, CPU/GPU consistent)
+            
+
+
+
   subroutine initialise_random_number ( seed )
     !*******************************************************************************
     !
@@ -1512,93 +1647,100 @@ contains
     implicit none
     ! arguments 
     real(WP), intent(in)  :: var(:, :, :)
-    real(WP), intent(out), optional :: opt_work(2)
+    real(WP), intent(inout), optional :: opt_work(2)
     character(len = 3), intent(in), optional :: opt_abs
     character(len = 4), intent(in), optional :: opt_calc
     character(len = *), intent(in), optional :: opt_name
     ! local variables
-    real(WP):: varmax_work, varmin_work
-    real(WP):: varmax, varmin, dummy
-    logical :: imax, imin, iabs
-    character(len=5) :: abs
+    real(WP) :: varmax_work, varmin_work, maxmin0(2), delta(2)
+    real(WP) :: varmax, varmin
+    logical  :: imax, imin, iabs, has_work
+    character(len=5) :: abs_tag
 
-    integer :: i, j, k, nx, ny, nz
-    nx = size(var, 1)
-    ny = size(var, 2)
-    nz = size(var, 3)
+    iabs = present(opt_abs)
+    has_work = present(opt_work)
 
-    if(present(opt_abs)) then
-      iabs = .true.
-    else
-      iabs = .false.
-    end if
-
-    varmax = MINN
-    varmin = MAXP
     imax = .true.
     imin = .true.
     if (present(opt_calc)) then
-      imax = .false.
-      imin = .false.
       select case (opt_calc)
       case ('MAXI')
-        varmax = MINN
-        imax = .true.
+        imin = .false.
       case ('MINI')
-        varmin = MAXP
-        imin = .true.
+        imax = .false.
       case default
-        varmax = MINN
-        varmin = MAXP
         imax = .true.
         imin = .true.
       end select
     end if
 
-    do k = 1, nz
-      do j = 1, ny
-        do i = 1, nx
-          dummy = var(i, j, k)
-          if(iabs) dummy = abs_wp(dummy)
-          if (imax .and. dummy  > varmax) varmax = dummy
-          if (imin .and. dummy  < varmin) varmin = dummy
-        end do
-      end do
-    end do
+    varmax = MINN
+    varmin = MAXP
+    if (imax) then
+      if (iabs) then
+        varmax = maxval(abs(var))
+      else
+        varmax = maxval(var)
+      end if
+    end if
+    if (imin) then
+      if (iabs) then
+        varmin = minval(abs(var))
+      else
+        varmin = minval(var)
+      end if
+    end if
 
     !call mpi_barrier(MPI_COMM_WORLD, ierror)
     if (imax) call mpi_allreduce(varmax, varmax_work, 1, MPI_REAL_WP, MPI_MAX, MPI_COMM_WORLD, ierror)
     if (imin) call mpi_allreduce(varmin, varmin_work, 1, MPI_REAL_WP, MPI_MIN, MPI_COMM_WORLD, ierror)
 
-    if(present(opt_work)) then
+    if(has_work) then
+      maxmin0 = opt_work
       opt_work = MAXP
-      if (imin) opt_work(1) = varmin_work
-      if (imax) opt_work(2) = varmax_work
+      delta = ZERO
+      if (imin) then
+        opt_work(1) = varmin_work
+        delta(1) = safe_divide(opt_work(1)-maxmin0(1), dabs(maxmin0(1))) * 1000.0_WP
+      end if
+      if (imax) then
+        opt_work(2) = varmax_work
+        delta(2) = safe_divide(opt_work(2)-maxmin0(2), dabs(maxmin0(2))) * 1000.0_WP
+      end if
     end if
     if(nrank == 0 .and. present(opt_name) .and. .not. is_IO_off) then
-      if(present(opt_abs)) then
-        abs = '-abs-'
+      if(iabs) then
+        abs_tag = '-abs-'
       else
-        abs = '-'
+        abs_tag = '.'
       end if
+      !
       if(imax .and. imin) then
-        write (*, wrtfmt2ae) 'maximum'//trim(abs)//opt_name, varmax_work, &
-                             'minimum'//trim(abs)//opt_name, varmin_work
-      else if(imax) then
-        if(opt_name == 'Mass Consv. (bulk    ) = ') then
-          write (*, wrtfmt1el, advance='no') 'maximum'//trim(abs)//opt_name, varmax_work
+        if(has_work) then
+          write (*, wrtfmt2aea)'min'//trim(abs_tag)//opt_name, varmin_work, delta(1), '‰', &
+                               'max'//trim(abs_tag)//opt_name, varmax_work, delta(2), '‰'
+                               
         else
-          write (*, wrtfmt1el) 'maximum'//trim(abs)//opt_name, varmax_work
+          write (*, wrtfmt2ae) 'min'//trim(abs_tag)//opt_name, varmin_work, &
+                               'max'//trim(abs_tag)//opt_name, varmax_work
+                               
+        end if 
+      else if(imax) then
+        if(has_work) then
+          write (*, wrtfmt1ela)'max'//trim(abs_tag)//opt_name, varmax_work, delta(2), '‰'
+        else
+          write (*, wrtfmt1el) 'max'//trim(abs_tag)//opt_name, varmax_work
         end if
       else if(imin) then
-        write (*, wrtfmt1el) 'minimum'//trim(abs)//opt_name, varmin_work
+        if(has_work) then
+          write (*, wrtfmt1ela)'min'//trim(abs_tag)//opt_name, varmin_work, delta(1), '‰'
       else
+          write (*, wrtfmt1el) 'min'//trim(abs_tag)//opt_name, varmin_work
       end if
+      else
     end if
-! #ifdef DEBUG_FFT
-!     if(varmax_work >   MAXVELO) call Print_error_msg('varmax_work >   MAXVELO')
-!     if(varmin_work < - MAXVELO) call Print_error_msg('varmax_work < - MAXVELO')
-! #endif
+      !
+    end if
 
     return
   end subroutine

@@ -8,7 +8,7 @@ module solver_tools_mod
   public  :: Update_Re
   public  :: Update_PrGr
   public  :: Calculate_vis_sponge
-  public  :: Calculate_xz_mean_yprofile
+  !public  :: Calculate_xz_mean_yprofile
   public  :: Adjust_to_xzmean_zero
   !public  :: Get_volumetric_average_3d ! not used anymore
   public  :: get_fbcx_ftp_4pc
@@ -169,61 +169,61 @@ contains
 !----------------------------------------------------------------------------------------------------------
 !> \param[inout]  none          NA
 !==========================================================================================================
-  subroutine Calculate_xz_mean_yprofile(var, dtmp, n, varxz_work1)
-    use mpi_mod
-    use udf_type_mod
-    use parameters_constant_mod
-    use io_files_mod
-    implicit none
-    type(DECOMP_INFO), intent(in) :: dtmp
-    real(WP), dimension(dtmp%xsz(1), dtmp%xsz(2), dtmp%xsz(3)), intent(in)  :: var ! x-pencil default
-    integer,  intent(in)  :: n
-    real(WP), dimension(n), optional, intent(out) :: varxz_work1
+!   subroutine Calculate_xz_mean_yprofile(var, dtmp, n, varxz_work1)
+!     use mpi_mod
+!     use udf_type_mod
+!     use parameters_constant_mod
+!     use io_files_mod
+!     implicit none
+!     type(DECOMP_INFO), intent(in) :: dtmp
+!     real(WP), dimension(dtmp%xsz(1), dtmp%xsz(2), dtmp%xsz(3)), intent(in)  :: var ! x-pencil default
+!     integer,  intent(in)  :: n
+!     real(WP), dimension(n), optional, intent(out) :: varxz_work1
 
-    real(wp) :: varxz( n )
-    integer :: jj, i, j, k
-    integer :: nk, ni!, nk_work, ni_work
-    real(WP) :: varxz_work(n)
-    !----------------------------------------------------------------------------------------------------------
-    !   Default X-pencil
-    !----------------------------------------------------------------------------------------------------------
-    varxz = ZERO
-    varxz_work = ZERO
-    do j = 1, dtmp%xsz(2)
-      nk = 0
-      ni = 0
-      jj = dtmp%xst(2) + j - 1 !local2global_yid(j, dtmp)
-      do k = 1, dtmp%xsz(3)
-        nk = nk + 1
-        do i = 1, dtmp%xsz(1)
-          ni = ni + 1
-          varxz(jj) = varxz(jj) + var(i, j, k) !
-        end do
-      end do
-      varxz(jj) = varxz(jj) / real(nk * ni, wp)
-    end do
+!     real(wp) :: varxz( n )
+!     integer :: jj, i, j, k
+!     integer :: nk, ni!, nk_work, ni_work
+!     real(WP) :: varxz_work(n)
+!     !----------------------------------------------------------------------------------------------------------
+!     !   Default X-pencil
+!     !----------------------------------------------------------------------------------------------------------
+!     varxz = ZERO
+!     varxz_work = ZERO
+!     do j = 1, dtmp%xsz(2)
+!       nk = 0
+!       ni = 0
+!       jj = dtmp%xst(2) + j - 1 !local2global_yid(j, dtmp)
+!       do k = 1, dtmp%xsz(3)
+!         nk = nk + 1
+!         do i = 1, dtmp%xsz(1)
+!           ni = ni + 1
+!           varxz(jj) = varxz(jj) + var(i, j, k) !
+!         end do
+!       end do
+!       varxz(jj) = varxz(jj) / real(nk * ni, wp)
+!     end do
     
 
-    !call mpi_barrier(MPI_COMM_WORLD, ierror)
-    !call mpi_allreduce(ni, ni_work, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
-    !call mpi_allreduce(nk, nk_work, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
-    call mpi_allreduce(varxz, varxz_work, n, MPI_REAL_WP, MPI_SUM, MPI_COMM_WORLD, ierror)
-    varxz_work = varxz_work / real(p_col * p_col, wp)
-    if(PRESENT(varxz_work1)) varxz_work1 = varxz_work
+!     !call mpi_barrier(MPI_COMM_WORLD, ierror)
+!     !call mpi_allreduce(ni, ni_work, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+!     !call mpi_allreduce(nk, nk_work, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+!     call mpi_allreduce(varxz, varxz_work, n, MPI_REAL_WP, MPI_SUM, MPI_COMM_WORLD, ierror)
+!     varxz_work = varxz_work / real(p_col * p_col, wp)
+!     if(PRESENT(varxz_work1)) varxz_work1 = varxz_work
 
-#ifdef DEBUG_STEPS
-    if (nrank == 0) then
-      open(121, file = trim(dir_chkp)//'/check_calculate_xz_mean_yprofile.dat', position="append")
-      do j = 1, dtmp%xsz(2)
-        jj = dtmp%xst(2) + j - 1 !local2global_yid(j, dtmp)
-        write(121, *) jj, varxz_work(jj)
-      end do
-    end if
-#endif
+! #ifdef DEBUG_STEPS
+!     if (nrank == 0) then
+!       open(121, file = trim(dir_chkp)//'/check_calculate_xz_mean_yprofile.dat', position="append")
+!       do j = 1, dtmp%xsz(2)
+!         jj = dtmp%xst(2) + j - 1 !local2global_yid(j, dtmp)
+!         write(121, *) jj, varxz_work(jj)
+!       end do
+!     end if
+! #endif
     
     
-    return
-  end subroutine
+!     return
+!   end subroutine
 !==========================================================================================================
 !> \brief : 
 !> MPI : x-pencil
@@ -812,6 +812,11 @@ subroutine Check_cfl_diffusion(fl, dm, opt_tm)
                           intg_fbcx(1) - intg_fbcx(2) + &
                           intg_fbcy(1) - intg_fbcy(2) + &
                           intg_fbcz(1) - intg_fbcz(2) 
+    !
+    ! if(nrank==0) then
+    !   write(*, '(4X, A, 4ES13.5)') 'mass balance check(-/+x, -/+y):', mass_imbalance(1:4)
+    !   write(*, '(4X, A, 4ES13.5)') 'mass balance check(-/+z, m, s):', mass_imbalance(5:8)
+    ! end if
     return
   end subroutine 
 

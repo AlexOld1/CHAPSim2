@@ -2324,7 +2324,7 @@ contains
     use cylindrical_rn_mod
     use find_max_min_ave_mod
     use typeconvert_mod
-    !use io_visualisation_mod
+    !use visualisation_field_mod
     use solver_tools_mod
     implicit none
     !------------------------------------------------------------------
@@ -2520,7 +2520,7 @@ contains
       call Calculate_drhodt(fl, dm, isub)
     end if
     ! to set up convective outlet b.c.
-    call update_convective_outlet_flow(fl, dm, isub)
+    call compute_convective_outlet_flow(fl, dm, isub)
     ! Main Momentum RHS
     if ( .not. dm%is_thermo) then 
       ! to calculate the rhs of the momenturn equation in stepping method
@@ -2554,6 +2554,7 @@ contains
       ! to update velocity/massflux correction
       !if(nrank == 0) call Print_debug_inline_msg("  Updating velocity/mass flux ...")
       call Correct_massflux(fl, fl%pcor, dm, isub)
+      !call correct_convective_outlet_flow(fl, dm, isub)
       if ( .not. dm%is_thermo) then
         call enforce_velo_from_fbc(dm, fl%qx, fl%qy, fl%qz, dm%fbcx_qx, dm%fbcy_qy, dm%fbcz_qz)
       else
