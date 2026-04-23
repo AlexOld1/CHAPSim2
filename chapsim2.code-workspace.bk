@@ -1,0 +1,22 @@
+{
+    "folders": [
+        { "path": "src" },
+        { "path": "build" },
+        { "path": "tests" },
+        { "path": "prepost" }
+    ],
+    "settings": {
+        "files.associations": {
+            "*.ini": "ini"
+        },
+        "files.exclude": {
+            "tests/**": true,
+            "!tests/**/*.ini": true,
+            "!tests/*.sh": true,
+
+            "build/**": true,
+            "!build/*.sh": true,
+            "!build/Makefile*": true
+        }
+    }
+}

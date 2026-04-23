@@ -1,8 +1,8 @@
 {
-  "global mass balance":   4.44089210E-16,
-  "max. mass conservation (interior)":   4.05453449E-13,
-  "max. mass conservation (inlet)":   2.34479103E-13,
-  "max. mass conservation (outlet)":   4.31654712E-13,
+  "global mass balance":   2.22044605E-15,
+  "max. mass conservation (interior)":   4.48974191E-13,
+  "max. mass conservation (inlet)":   2.27373675E-13,
+  "max. mass conservation (outlet)":   4.44533407E-13,
   "global pressure drop":  -5.16277445E+02,
   "mean dpdx":   2.05384244E+01,
   "total kinetic energy":   6.76904050E-01,

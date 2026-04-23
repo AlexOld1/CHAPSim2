@@ -24,6 +24,7 @@ contains
 !==========================================================================================================
 !==========================================================================================================
   subroutine read_one_3d_array(var, keyword, idom, iter, dtmp)
+    use iso_fortran_env, only: int64
     implicit none 
     integer, intent(in) :: idom
     character(*), intent(in) :: keyword
@@ -33,12 +34,28 @@ contains
                                                       dtmp%xsz(2), &
                                                       dtmp%xsz(3))
     character(64):: data_flname_path
+    character(512) :: msg
+    integer(int64) :: file_bytes, expected_bytes, elem_bytes
 
     call generate_pathfile_name(data_flname_path, idom, trim(keyword), dir_data, 'bin', iter)
     if(.not.file_exists(data_flname_path)) &
-    call Print_error_msg("The file "//trim(dir_data)//trim(data_flname_path)//" does not exist.")
+    call Print_error_msg("The file "//trim(data_flname_path)//" does not exist.")
 
-    if(nrank == 0) call Print_debug_inline_msg("Reading "//trim(dir_data)//"/"//trim(data_flname_path))
+    inquire(file=trim(data_flname_path), size=file_bytes)
+    elem_bytes = int(storage_size(var), int64) / 8_int64
+    expected_bytes = int(dtmp%xsz(1), int64) * &
+                     int(dtmp%ysz(2), int64) * &
+                     int(dtmp%zsz(3), int64) * elem_bytes
+    if(file_bytes /= expected_bytes) then
+      write(msg, '(A,A,A,I0,A,I0,A,I0,A,I0,A,I0,A)') &
+        'Read size mismatch for ', trim(data_flname_path), ': file has ', &
+        file_bytes, ' bytes, expected ', expected_bytes, ' bytes for global shape (', &
+        dtmp%xsz(1), ',', dtmp%ysz(2), ',', dtmp%zsz(3), &
+        '). Regenerate the matching restart/outlet file.'
+      call Print_error_msg(trim(msg))
+    end if
+
+    if(nrank == 0) call Print_debug_inline_msg("Reading "//trim(data_flname_path))
 
     call decomp_2d_read_one(IPENCIL(1), var, trim(data_flname_path), &
           opt_decomp=dtmp, &
@@ -84,7 +101,7 @@ contains
     end if
 
     if (do_write) then
-      if(nrank == 0) call Print_debug_mid_msg("Writing "//trim(dir_data)//"/"//trim(field_file))
+      if(nrank == 0) call Print_debug_mid_msg("Writing "//trim(field_file))
       call decomp_2d_write_one(IPENCIL(1), var, trim(field_file), opt_decomp=dtmp)
     end if
     !

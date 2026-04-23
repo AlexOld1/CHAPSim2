@@ -2776,7 +2776,11 @@ contains
     dp(3) = dm%h(1) * TWO
     dp(2) = dm%h(1)
     dp(4) = dm%h(1) * TWO
-    call Prepare_TDMA_interp_C2P_RHS_array(fi(:), fo(:), nsz, m1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_interp_C2P_RHS_array(fi(:), fo(:), nsz, m1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_interp_C2P_RHS_array(fi(:), fo(:), nsz, m1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -2840,7 +2844,11 @@ contains
     dp(3) = dm%h(1) * FOUR
     dp(2) = dm%h(1) * TWO
     dp(4) = dm%h(1) * FOUR
-    call Prepare_TDMA_interp_P2C_RHS_array(fi(:), fo(:), nsz, m1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_interp_P2C_RHS_array(fi(:), fo(:), nsz, m1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_interp_P2C_RHS_array(fi(:), fo(:), nsz, m1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -2918,7 +2926,11 @@ contains
     !----------------------------------------------------------------------
     ! prepare the RHS array for the TDMA algorithm
     !----------------------------------------------------------------------
-    call Prepare_TDMA_interp_C2P_RHS_array(fi(:), fo(:), nsz, m1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_interp_C2P_RHS_array(fi(:), fo(:), nsz, m1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_interp_C2P_RHS_array(fi(:), fo(:), nsz, m1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -2986,7 +2998,11 @@ contains
     !----------------------------------------------------------------------
     ! prepare the RHS array for the TDMA algorithm
     !----------------------------------------------------------------------
-    call Prepare_TDMA_interp_P2C_RHS_array(fi(:), fo(:), nsz, m1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), fbc(:), dp(:) )
+    if (present(fbc)) then
+      call Prepare_TDMA_interp_P2C_RHS_array(fi(:), fo(:), nsz, m1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_interp_P2C_RHS_array(fi(:), fo(:), nsz, m1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -3044,7 +3060,11 @@ contains
     dp(3) = dm%h(3) * TWO
     dp(2) = dm%h(3)
     dp(4) = dm%h(3) * TWO
-    call Prepare_TDMA_interp_C2P_RHS_array(fi(:), fo(:), nsz, m1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_interp_C2P_RHS_array(fi(:), fo(:), nsz, m1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_interp_C2P_RHS_array(fi(:), fo(:), nsz, m1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -3099,7 +3119,11 @@ contains
     dp(3) = dm%h(3) * FOUR
     dp(2) = dm%h(3) * TWO
     dp(4) = dm%h(3) * FOUR
-    call Prepare_TDMA_interp_P2C_RHS_array(fi(:), fo(:), nsz, m1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_interp_P2C_RHS_array(fi(:), fo(:), nsz, m1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_interp_P2C_RHS_array(fi(:), fo(:), nsz, m1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -3175,7 +3199,11 @@ contains
     dp(3) = dm%h(1) * TWO
     dp(2) = dm%h(1)
     dp(4) = dm%h(1) * TWO
-    call Prepare_TDMA_1deri_C2C_RHS_array(fi(:), fo(:), nsz, d1rC2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(1), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_1deri_C2C_RHS_array(fi(:), fo(:), nsz, d1rC2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(1), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_1deri_C2C_RHS_array(fi(:), fo(:), nsz, d1rC2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(1), ibc(:), opt_dp = dp(:))
+    end if
 
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
@@ -3240,7 +3268,11 @@ contains
     dp(3) = dm%h(1) * FOUR
     dp(2) = dm%h(1) * TWO
     dp(4) = dm%h(1) * FOUR
-    call Prepare_TDMA_1deri_P2P_RHS_array(fi(:), fo(:), nsz, d1rP2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(1), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_1deri_P2P_RHS_array(fi(:), fo(:), nsz, d1rP2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(1), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_1deri_P2P_RHS_array(fi(:), fo(:), nsz, d1rP2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(1), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -3307,7 +3339,11 @@ contains
     dp(3) = dm%h(1) * TWO
     dp(2) = dm%h(1)
     dp(4) = dm%h(1) * TWO
-    call Prepare_TDMA_1deri_C2P_RHS_array(fi(:), fo(:), nsz, d1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(1), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_1deri_C2P_RHS_array(fi(:), fo(:), nsz, d1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(1), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_1deri_C2P_RHS_array(fi(:), fo(:), nsz, d1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(1), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -3372,7 +3408,11 @@ contains
     dp(3) = dm%h(1) * FOUR
     dp(2) = dm%h(1) * TWO
     dp(4) = dm%h(1) * FOUR
-    call Prepare_TDMA_1deri_P2C_RHS_array(fi(:), fo(:), nsz, d1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(1), ibc(:), fbc(:), dp(:) )
+    if (present(fbc)) then
+      call Prepare_TDMA_1deri_P2C_RHS_array(fi(:), fo(:), nsz, d1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(1), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_1deri_P2C_RHS_array(fi(:), fo(:), nsz, d1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(1), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -3452,7 +3492,11 @@ contains
     !----------------------------------------------------------------------
     ! prepare the RHS array for the TDMA algorithm
     !----------------------------------------------------------------------
-    call Prepare_TDMA_1deri_C2C_RHS_array(fi(:), fo(:), nsz, d1rC2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(2), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_1deri_C2C_RHS_array(fi(:), fo(:), nsz, d1rC2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(2), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_1deri_C2C_RHS_array(fi(:), fo(:), nsz, d1rC2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(2), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -3527,7 +3571,11 @@ contains
     !----------------------------------------------------------------------
     ! prepare the RHS array for the TDMA algorithm
     !----------------------------------------------------------------------
-    call Prepare_TDMA_1deri_P2P_RHS_array(fi(:), fo(:), nsz, d1rP2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(2), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_1deri_P2P_RHS_array(fi(:), fo(:), nsz, d1rP2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(2), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_1deri_P2P_RHS_array(fi(:), fo(:), nsz, d1rP2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(2), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -3606,7 +3654,11 @@ contains
     !----------------------------------------------------------------------
     ! prepare the RHS array for the TDMA algorithm
     !----------------------------------------------------------------------
-    call Prepare_TDMA_1deri_C2P_RHS_array(fi(:), fo(:), nsz, d1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(2), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_1deri_C2P_RHS_array(fi(:), fo(:), nsz, d1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(2), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_1deri_C2P_RHS_array(fi(:), fo(:), nsz, d1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(2), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -3682,7 +3734,11 @@ contains
     !----------------------------------------------------------------------
     ! prepare the RHS array for the TDMA algorithm
     !----------------------------------------------------------------------
-    call Prepare_TDMA_1deri_P2C_RHS_array(fi(:), fo(:), nsz, d1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(2), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_1deri_P2C_RHS_array(fi(:), fo(:), nsz, d1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(2), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_1deri_P2C_RHS_array(fi(:), fo(:), nsz, d1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(2), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -3747,7 +3803,11 @@ contains
     dp(3) = dm%h(3) * TWO
     dp(2) = dm%h(3)
     dp(4) = dm%h(3) * TWO
-    call Prepare_TDMA_1deri_C2C_RHS_array(fi(:), fo(:), nsz, d1rC2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(3), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_1deri_C2C_RHS_array(fi(:), fo(:), nsz, d1rC2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(3), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_1deri_C2C_RHS_array(fi(:), fo(:), nsz, d1rC2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(3), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -3802,7 +3862,11 @@ contains
     dp(3) = dm%h(3) * FOUR
     dp(2) = dm%h(3) * TWO
     dp(4) = dm%h(3) * FOUR
-    call Prepare_TDMA_1deri_P2P_RHS_array(fi(:), fo(:), nsz, d1rP2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(3), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_1deri_P2P_RHS_array(fi(:), fo(:), nsz, d1rP2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(3), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_1deri_P2P_RHS_array(fi(:), fo(:), nsz, d1rP2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(3), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -3859,7 +3923,11 @@ contains
     dp(3) = dm%h(3) * TWO
     dp(2) = dm%h(3)
     dp(4) = dm%h(3) * TWO
-    call Prepare_TDMA_1deri_C2P_RHS_array(fi(:), fo(:), nsz, d1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(3), ibc(:), fbc(:), dp(:) )
+    if (present(fbc)) then
+      call Prepare_TDMA_1deri_C2P_RHS_array(fi(:), fo(:), nsz, d1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(3), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_1deri_C2P_RHS_array(fi(:), fo(:), nsz, d1rC2P(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(3), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.
@@ -3914,7 +3982,11 @@ contains
     dp(3) = dm%h(3) * FOUR
     dp(2) = dm%h(3) * TWO
     dp(4) = dm%h(3) * FOUR
-    call Prepare_TDMA_1deri_P2C_RHS_array(fi(:), fo(:), nsz, d1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(3), ibc(:), fbc(:), dp(:))
+    if (present(fbc)) then
+      call Prepare_TDMA_1deri_P2C_RHS_array(fi(:), fo(:), nsz, d1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(3), ibc(:), opt_fbc = fbc(:), opt_dp = dp(:))
+    else
+      call Prepare_TDMA_1deri_P2C_RHS_array(fi(:), fo(:), nsz, d1rP2C(1:NL, 1:2*NS, NBCS:NBCE, iacc), dm%h1r(3), ibc(:), opt_dp = dp(:))
+    end if
     if (iacc == IACCU_CP4 .or. iacc == IACCU_CP6) then 
       if(ibc(1) == IBC_PERIODIC) then
         is_periodic = .true.

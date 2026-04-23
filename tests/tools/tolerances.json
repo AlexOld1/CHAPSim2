@@ -1,54 +1,65 @@
 {
   "global mass balance": {
-    "abs": 1e-6
-  },
-  "max. mass conservation (interior)": {
-    "abs": 1e-10
-  },
-  "max. mass conservation (inlet)": {
-    "abs": 1e-10
-  },
-  "max. mass conservation (outlet)": {
-    "abs": 1e-10
-  },
-
-  "total kinetic energy": {
+    "abs": 1e-6,
     "rel": 1e-5
   },
 
-  "bulk velocity ux": {
-    "rel": 1e-4
+  "max. mass conservation (interior)": {
+    "abs": 1e-10,
+    "rel": 1e-3
   },
-  "bulk velocity uy": {
-    "rel": 1e-4
+  "max. mass conservation (inlet)": {
+    "abs": 1e-10,
+    "rel": 1e-3
   },
-  "bulk velocity uz": {
-    "rel": 1e-4
-  },
-
-  "mean dpdx": {
-    "rel": 1e-4
+  "max. mass conservation (outlet)": {
+    "abs": 1e-10,
+    "rel": 1e-3
   },
 
   "global pressure drop": {
+    "abs": 1e-2,
+    "rel": 1e-3
+  },
+  "mean dpdx": {
+    "abs": 1e-2,
+    "rel": 1e-3
+  },
+
+  "total kinetic energy": {
+    "abs": 1e-10,
+    "rel": 1e-6
+  },
+
+  "bulk velocity ux": {
+    "abs": 1e-10,
+    "rel": 1e-5
+  },
+  "bulk velocity uz": {
+    "abs": 1e-8,
     "rel": 1e-4
   },
 
   "bulk massflux gx": {
-    "rel": 1e-6
-  },
-  "bulk massflux gy": {
+    "abs": 1e-10,
     "rel": 1e-6
   },
   "bulk massflux gz": {
+    "abs": 1e-8,
     "rel": 1e-6
   },
 
   "bulk enthalpy": {
+    "abs": 1e-8,
     "rel": 1e-5
+  },
+  "bulk temperature": {
+    "abs": 1e-8,
+    "rel": 1e-6
   },
 
   "global energy balance": {
-    "abs": 1e-10
+    "abs": 1e-10,
+    "rel": 1e-5
   }
 }

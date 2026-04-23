@@ -637,7 +637,7 @@ contains
       if(dm%is_read_xinlet) then
         call read_instantaneous_xinlet(fl, dm, opt_iter=1)
       else
-      call Generate_random_field(fl, dm)
+        call Generate_random_field(fl, dm)
       end if
       call initialise_flow_from_given_inlet(fl, dm)
 
@@ -750,7 +750,7 @@ contains
     fl%dDens0(:, :, :) = fl%dDens(:, :, :)
     if(nrank == 0) call Print_debug_mid_msg("update_fbcy_cc_thermo_halo ...")
     if (dm%icase == ICASE_PIPE) call update_fbcy_cc_thermo_halo(tm, dm)
- 
+
     if(nrank == 0) call Print_debug_mid_msg("write_visu_thermo ...")
     call write_visu_thermo(tm, fl, dm, 'init')
 

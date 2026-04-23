@@ -597,7 +597,7 @@ end function
 
     real(WP), dimension(dtmp%ysz(1), dtmp%ysz(2), dtmp%ysz(3)) :: qz_ypencil, qz_ypencil_sym
     real(WP), dimension(dtmp%zsz(1), dtmp%zsz(2), dtmp%zsz(3)) :: qz_zpencil, qz_zpencil_sym
-    
+
     integer :: k
 
     call transpose_x_to_y(qz_xpencil, qz_ypencil, dtmp)

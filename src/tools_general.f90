@@ -136,12 +136,19 @@ module code_performance_mod
                         CPU_TIME_ITER_START = 3, &
                         CPU_TIME_ITER_END   = 4, &
                         CPU_TIME_STEP_END   = 5, &
-                        CPU_TIME_CODE_END   = 6
+                        CPU_TIME_CODE_END   = 6, &
+                        CPU_TIME_ITER_SOLVER  = 7, &
+                        CPU_TIME_ITER_MONITOR = 8, &
+                        CPU_TIME_ITER_IO      = 9
 
   real(wp), save :: t_code_start
   real(wp), save :: t_step_start
   real(wp), save :: t_iter_start
   real(wp), save :: t_iter_end
+  real(wp), save :: t_iter_mark
+  real(wp), save :: t_iter_solver
+  real(wp), save :: t_iter_monitor
+  real(wp), save :: t_iter_io
   real(wp), save :: t_step_end
   real(wp), save :: t_code_end
   integer :: cpu_nfre 
@@ -174,8 +181,10 @@ module code_performance_mod
     integer, intent(in), optional :: iter
     integer :: hrs, mins
     real(wp) :: secs, t(4), t_work(4)
+    real(wp) :: t_now
     real(WP) :: t_total, t_elaspsed, t_remaining, t_aveiter, t_this_iter, t_preparation, t_postprocessing
     real(WP) :: t_total0, t_elaspsed0,t_remaining0, t_aveiter0, t_this_iter0, t_preparation0, t_postprocessing0
+    real(WP) :: t_iter_solver0, t_iter_monitor0, t_iter_io0
 !----------------------------------------------------------------------------------------------------------
     if(itype == CPU_TIME_CODE_START) then
       call cpu_time(t_code_start)
@@ -191,8 +200,27 @@ module code_performance_mod
 !----------------------------------------------------------------------------------------------------------
     else if (itype == CPU_TIME_ITER_START) then
       call cpu_time(t_iter_start)
+      t_iter_mark = t_iter_start
+      t_iter_solver = ZERO
+      t_iter_monitor = ZERO
+      t_iter_io = ZERO
       if(nrank == 0 .and. .not. is_IO_off) call Print_debug_start_msg ("Time Step = "//trim(int2str(iter))// &
           '/'//trim(int2str(niter))) !trim(int2str(niter-iterfrom)))
+!----------------------------------------------------------------------------------------------------------
+    else if (itype == CPU_TIME_ITER_SOLVER) then
+      call cpu_time(t_now)
+      t_iter_solver = t_iter_solver + t_now - t_iter_mark
+      t_iter_mark = t_now
+!----------------------------------------------------------------------------------------------------------
+    else if (itype == CPU_TIME_ITER_MONITOR) then
+      call cpu_time(t_now)
+      t_iter_monitor = t_iter_monitor + t_now - t_iter_mark
+      t_iter_mark = t_now
+!----------------------------------------------------------------------------------------------------------
+    else if (itype == CPU_TIME_ITER_IO) then
+      call cpu_time(t_now)
+      t_iter_io = t_iter_io + t_now - t_iter_mark
+      t_iter_mark = t_now
 !----------------------------------------------------------------------------------------------------------
     else if (itype == CPU_TIME_ITER_END) then
       if(.not.present(iter)) call Print_error_msg("Error in calculating CPU Time.")
@@ -213,11 +241,24 @@ module code_performance_mod
       t_aveiter0   = t_work(3)
       t_remaining0 = t_work(4)
 
+      t(1) = t_iter_solver
+      t(2) = t_iter_monitor
+      t(3) = t_iter_io
+      t(4) = ZERO
+      call mpi_allreduce(t, t_work, 4, MPI_REAL_WP, MPI_MAX, MPI_COMM_WORLD, ierror)
+      t_iter_solver0  = t_work(1)
+      t_iter_monitor0 = t_work(2)
+      t_iter_io0      = t_work(3)
+
       if(nrank == 0 .and. .not. is_IO_off) call Print_debug_mid_msg ("Code Performance Info")
       if(nrank == 0) then 
         if (.not. is_IO_off) then 
           call Print_debug_inline_msg ("    Time for iteration, current vs average: " // &
           trim(real2str(t_this_iter0))//' s'//' vs '//trim(real2str(t_aveiter0))//' s')
+          call Print_debug_inline_msg ("      solver / monitor / io: " // &
+          trim(real2str(t_iter_solver0))//' s / '// &
+          trim(real2str(t_iter_monitor0))//' s / '// &
+          trim(real2str(t_iter_io0))//' s')
         else
           write(*, *) iter, t_this_iter0, t_aveiter0
         end if
@@ -1734,11 +1775,11 @@ contains
       else if(imin) then
         if(has_work) then
           write (*, wrtfmt1ela)'min'//trim(abs_tag)//opt_name, varmin_work, delta(1), '‰'
-      else
+        else
           write (*, wrtfmt1el) 'min'//trim(abs_tag)//opt_name, varmin_work
-      end if
+        end if
       else
-    end if
+      end if
       !
     end if
 

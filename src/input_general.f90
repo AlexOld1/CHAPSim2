@@ -528,7 +528,8 @@ contains
           end if
           if(domain(i)%ibcx_nominal(1, 1) == IBC_DATABASE) then
             domain(i)%ibcx_nominal(1, 2:3) = IBC_DATABASE
-            domain(i)%ibcx_nominal(1, 4:5) = IBC_NEUMANN
+            domain(i)%ibcx_nominal(1, 4) = IBC_NEUMANN
+            !domain(i)%ibcx_nominal(1, 5) = IBC_DIRICHLET
           end if
           !if(domain(i)%ibcx_nominal(2, 1) == IBC_CONVECTIVE) then
           !  domain(i)%ibcx_nominal(2, 2:3) = IBC_CONVECTIVE
@@ -738,7 +739,7 @@ contains
               write (*, wrtfmt1i) 'restarting from :', flow(i)%iterfrom
             end if
             if(flow(i)%inittype == INIT_GVCONST) then
-            write (*, wrtfmt3r) 'initial velocity u, v, w :', flow(i)%init_velo3d(1:3)
+              write (*, wrtfmt3r) 'initial velocity u, v, w :', flow(i)%init_velo3d(1:3)
             end if
             write (*, wrtfmt1r) 'Initial velocity influction level :', flow(i)%noiselevel
             write (*, wrtfmt1r) 'Initial Reynolds No. :', flow(i)%reninit
@@ -778,6 +779,12 @@ contains
         if(is_any_energyeq) thermo(1 : nxdomain)%istt_qw_ramp = i
         if(is_any_energyeq) thermo(1 : nxdomain)%iend_qw_ramp = j
 
+        do i = 1, nxdomain
+          if( domain(i)%ibcx_nominal(1, 5) == IBC_DIRICHLET ) then
+            domain(i)%fbcx_const(1, 5) = thermo(i)%init_T0
+          end if
+        end do
+
         if(is_any_energyeq .and. nrank == 0) then
           do i = 1, nxdomain
             !write (*, wrtfmt1i) '------For the domain-x------ ', i
@@ -792,7 +799,7 @@ contains
               write (*, wrtfmt1i) 'restarting from :', thermo(i)%iterfrom
             end if
             if(thermo(i)%inittype == INIT_GVCONST) then
-            write (*, wrtfmt1r) 'initial temperature (K) :', thermo(i)%init_T0
+              write (*, wrtfmt1r) 'initial temperature (K) :', thermo(i)%init_T0
             end if
             write (*, wrtfmt2r) 'inlet  thermal buffer length (lx/L0):', thermo(i)%thermo_buffer_layer(1)
             write (*, wrtfmt2r) 'outlet thermal buffer length (lx/L0):', thermo(i)%thermo_buffer_layer(2)
@@ -801,6 +808,10 @@ contains
               write (*, wrtfmt1i) 'b.c. qw ramp starts from :', thermo(i)%istt_qw_ramp
               write (*, wrtfmt1i) 'b.c. qw ramp ends at :', thermo(i)%iend_qw_ramp
             end if 
+            if(thermo(i)%thermo_buffer_layer(1) > MINP .and. &
+               domain(i)%ibcy_nominal(1, 5)==IBC_DIRICHLET ) then 
+              call Print_warning_msg("A buffer layer is not recommanded for this configuration.")
+            end if
           end do
         else if(nrank == 0) then
          call Print_note_msg ('Thermal field is not considered. ')
