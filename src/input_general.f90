@@ -528,7 +528,7 @@ contains
           end if
           if(domain(i)%ibcx_nominal(1, 1) == IBC_DATABASE) then
             domain(i)%ibcx_nominal(1, 2:3) = IBC_DATABASE
-            domain(i)%ibcx_nominal(1, 4:5) = IBC_NEUMANN
+            domain(i)%ibcx_nominal(1, 4) = IBC_NEUMANN
           end if
           !if(domain(i)%ibcx_nominal(2, 1) == IBC_CONVECTIVE) then
           !  domain(i)%ibcx_nominal(2, 2:3) = IBC_CONVECTIVE

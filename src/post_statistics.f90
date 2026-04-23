@@ -418,6 +418,7 @@ module statistics_mod
   private :: run_stats_loops1
   private :: run_stats_loops3
   private :: run_stats_loops6
+  private :: run_stats_loops9
   private :: run_stats_loops10
   private :: run_stats_loops45
   !
@@ -568,6 +569,42 @@ contains
             if (.not. present(opt_acccn1)) call Print_error_msg("Error in run_stats_loops6.")
             if (.not. present(opt_acccn2)) call Print_error_msg("Error in run_stats_loops6.")
             opt_accc(:, :, :) = opt_acccn1(:, :, :, i) * opt_acccn2(:, :, :, j)
+            if(present(opt_accc0)) &
+            opt_accc(:, :, :) = opt_accc(:, :, :) * opt_accc0(:, :, :)
+          end if
+          call run_stats_action(mode, accc_tavg, trim(field_name)//trim(int2str(i))//trim(int2str(j)), iter, dm, opt_accc, opt_visnm)
+          if(mode == STATS_TAVG)&
+          acccn_tavg(:, :, :, n) = accc_tavg(:, :, :)
+        end if
+      end do
+    end do
+    return
+  end subroutine
+!==========================================================================================================
+  subroutine run_stats_loops9(mode, acccn_tavg, field_name, iter, dm, opt_acccnn1, opt_accc0, opt_visnm)
+    use udf_type_mod
+    use typeconvert_mod
+    implicit none
+    integer, intent(in) :: mode
+    character(len=*), intent(in) :: field_name
+    character(len=*), intent(in), optional :: opt_visnm
+    real(WP), dimension(:, :, :, :),    intent(inout) :: acccn_tavg
+    real(WP), dimension(:, :, :, :, :), intent(in), optional :: opt_acccnn1
+    real(WP), dimension(:, :, :),       intent(in), optional :: opt_accc0
+    type(t_domain), intent(in) :: dm
+    integer, intent(in) :: iter
+    integer :: n, i, j
+    real(WP), dimension( dm%dccc%xsz(1), dm%dccc%xsz(2), dm%dccc%xsz(3)) :: accc_tavg, opt_accc
+    !
+    n = 0
+    do i = 1, 3
+      do j = 1, 3
+        n = n + 1
+        if (n <= 9) then
+          accc_tavg(:, :, :) = acccn_tavg(:, :, :, n)
+          if(mode == STATS_TAVG) then
+            if (.not. present(opt_acccnn1)) call Print_error_msg("Error in run_stats_loops9.")
+            opt_accc(:, :, :) = opt_acccnn1(:, :, :, i, j)
             if(present(opt_accc0)) &
             opt_accc(:, :, :) = opt_accc(:, :, :) * opt_accc0(:, :, :)
           end if
@@ -739,9 +776,11 @@ contains
     if(dm%stat_level > ISTATL2) then
     allocate( fl%tavg_pru (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 3) )
     allocate( fl%tavg_uuu (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 10) )
+    allocate( fl%tavg_prdu(ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 9) )
     allocate( fl%tavg_dudu(ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 6) )
     fl%tavg_uuu  = ZERO
     fl%tavg_pru  = ZERO
+    fl%tavg_prdu = ZERO
     fl%tavg_dudu = ZERO
     end if
     ! Favre averaging only parameters
@@ -786,6 +825,7 @@ contains
       end if
       if(dm%stat_level > ISTATL2) then
       call run_stats_loops3 (STATS_READ, fl%tavg_pru,  't_avg_pru',  iter, dm)
+      call run_stats_loops9 (STATS_READ, fl%tavg_prdu, 't_avg_prdu', iter, dm)
       call run_stats_loops10(STATS_READ, fl%tavg_uuu,  't_avg_uuu',  iter, dm)
       call run_stats_loops45(STATS_READ, fl%tavg_dudu, 't_avg_dudu', iter, dm)
       end if
@@ -1050,6 +1090,7 @@ contains
     end if
     if(dm%stat_level > ISTATL2) then
       call run_stats_loops3 (STATS_TAVG, fl%tavg_pru, 't_avg_pru', iter, dm, opt_acccn1=uccc, opt_accc0=fl%pres)
+      call run_stats_loops9 (STATS_TAVG, fl%tavg_prdu,'t_avg_prdu',iter, dm, opt_acccnn1=dudx, opt_accc0=fl%pres)
       call run_stats_loops10(STATS_TAVG, fl%tavg_uuu, 't_avg_uuu', iter, dm, opt_acccn1=uccc, opt_acccn2=uccc, opt_acccn3=uccc)
       call run_stats_loops45(STATS_TAVG, fl%tavg_dudu,'t_avg_dudu',iter, dm, opt_acccnn1=dudx,opt_acccnn2=dudx)
     end if
@@ -1211,6 +1252,7 @@ contains
     end if
     if(dm%stat_level > ISTATL2) then
     call run_stats_loops3 (STATS_WRITE, fl%tavg_pru, 't_avg_pru',  iter, dm)
+    call run_stats_loops9 (STATS_WRITE, fl%tavg_prdu,'t_avg_prdu', iter, dm)
     call run_stats_loops10(STATS_WRITE, fl%tavg_uuu, 't_avg_uuu',  iter, dm)
     call run_stats_loops45(STATS_WRITE, fl%tavg_dudu,'t_avg_dudu', iter, dm)
     end if
@@ -1324,6 +1366,7 @@ contains
     end if
     if(dm%stat_level > ISTATL2) then
     call run_stats_loops3 (STATS_VISU3, fl%tavg_pru,  't_avg_pru',  iter, dm, opt_visnm=trim(visuname))
+    call run_stats_loops9 (STATS_VISU3, fl%tavg_prdu, 't_avg_prdu', iter, dm, opt_visnm=trim(visuname))
     call run_stats_loops10(STATS_VISU3, fl%tavg_uuu,  't_avg_uuu',  iter, dm, opt_visnm=trim(visuname))
     call run_stats_loops45(STATS_VISU3, fl%tavg_dudu, 't_avg_dudu', iter, dm, opt_visnm=trim(visuname))
     end if
@@ -1367,6 +1410,7 @@ contains
       end if
       if(dm%stat_level > ISTATL2) then
       call run_stats_loops3 (STATS_VISU1, fl%tavg_pru,  'tsp_avg_pru',  iter, dm, opt_visnm=trim(visuname))
+      call run_stats_loops9 (STATS_VISU1, fl%tavg_prdu, 'tsp_avg_prdu', iter, dm, opt_visnm=trim(visuname))
       call run_stats_loops10(STATS_VISU1, fl%tavg_uuu,  'tsp_avg_uuu',  iter, dm, opt_visnm=trim(visuname))
       call run_stats_loops45(STATS_VISU1, fl%tavg_dudu, 'tsp_avg_dudu', iter, dm, opt_visnm=trim(visuname))
       end if
