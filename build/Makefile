@@ -1,15 +1,24 @@
 #################################################################################################
 # Makefile for CHAPSim2, by Wei Wang, July 2021                                                 #
-# Updated: Jan 2025 - Incremental compilation enabled + Architecture detection                  #
+# Updated: Mar 2026 - robust stop-on-error logging with tee, portable for bash/zsh environments #
 # Usage:                                                                                        #
-#       make all         to make all files with -O3 optimization                                #
-#       make cfg=gnu-g   to debug for gfortran compiler (no debug_steps)                       #
-#       make cfg=gnu-debug to debug for gfortran compiler (with debug_steps)                   #
-#       make cfg=gnu-o3  to optimize with -O3                                                   #
-#       make cfg=intel   to debug for intel compiler                                            #
-#       make cfg=cray    to make for cray                                                       #
+#       make all              to make all files with default optimization                       #
+#       make cfg=gnu-g        to debug for gfortran compiler (no DEBUG_STEPS)                   #
+#       make cfg=gnu-debug    to debug for gfortran compiler (with DEBUG_STEPS)                 #
+#       make cfg=gnu-o3       to optimize with -O3                                              #
+#       make cfg=intel        to debug for intel compiler                                       #
+#       make cfg=cray         to make for cray                                                  #
 #################################################################################################
+
+#################################################################################################
+# Makefile for CHAPSim2, by Wei Wang, July 2021                                                 #
+# Updated: Mar 2026 - POSIX sh compatible, stop on error, no bash dependency                    #
+#################################################################################################
+
 .SUFFIXES:
+SHELL := /bin/sh
+.SHELLFLAGS := -ec
+.DELETE_ON_ERROR:
 
 # Program name and directories
 PROGRAM = CHAPSim
@@ -20,9 +29,7 @@ DIR_BLD = ../build
 DIR_LIB = ../lib/fishpack4.1
 
 # Default configuration if 'cfg' is not specified
-ifeq ($(cfg),)
-    cfg := default
-endif
+cfg ?= default
 
 # Detect architecture and platform
 UNAME_S := $(shell uname -s)
@@ -31,18 +38,14 @@ UNAME_M := $(shell uname -m)
 # Set architecture-specific flags
 ARCH_FLAGS :=
 ifeq ($(UNAME_S),Darwin)
-    # macOS
     ifeq ($(UNAME_M),arm64)
-        # Apple Silicon (M1/M2/M3/M4)
         ARCH_FLAGS := -arch arm64
         $(info Detected: Apple Silicon ($(UNAME_M)))
     else ifeq ($(UNAME_M),x86_64)
-        # Intel Mac
         ARCH_FLAGS := -arch x86_64
         $(info Detected: Intel Mac ($(UNAME_M)))
     endif
 else ifeq ($(UNAME_S),Linux)
-    # Linux
     $(info Detected: Linux ($(UNAME_M)))
 else
     $(info Detected: $(UNAME_S) ($(UNAME_M)))
@@ -56,47 +59,51 @@ COMMON_FOPTS = $(ARCH_FLAGS) -fallow-argument-mismatch -Wno-unused -Wno-unused-d
                -finit-local-zero -ffree-line-length-512 -DDOUBLE_PREC \
                -fdefault-real-8 -fdefault-double-8
 
-FOPTS_WARNING = -Wunused-parameter -Wunused-dummy-argument # -Wunused-variable 
+FOPTS_WARNING = -Wunused-parameter -Wunused-dummy-argument
 
 # Compiler and flags based on configuration
-ifeq ($(cfg), gnu-g)
+ifeq ($(cfg),gnu-g)
   FC     = mpif90
   FOPTS  = -g -O0 $(COMMON_FOPTS) $(FOPTS_WARNING)
-  FDEBG  = # No DEBUG_STEPS for this config
-else ifeq ($(cfg), gnu-debug)
+  FDEBG  =
+else ifeq ($(cfg),gnu-debug)
   FC     = mpif90
   FOPTS  = -g -O0 $(COMMON_FOPTS) $(FOPTS_WARNING)
   FDEBG  = -DDEBUG_STEPS
-else ifeq ($(cfg), intel)
+else ifeq ($(cfg),intel)
   FC     = mpiifort
   FOPTS  = -g -assume ieee_fpe_flags -check all -check bounds -check uninit -debug all \
            -fp-stack-check fpe0 -fpe3 -fpe-all=3 -ftrapuv -ftz -warn all,nounused -fpp \
            -convert big_endian
   FDEBG  = -DDEBUG_STEPS -DDEBUG_FFT
-else ifeq ($(cfg), cray)
+else ifeq ($(cfg),cray)
   FC     = ftn
   FOPTS  = -cpp
   FDEBG  = -DDEBUG_STEPS -DDEBUG_FFT
-else ifeq ($(cfg), gnu-o3)
+else ifeq ($(cfg),gnu-o3)
   FC     = mpif90
   FOPTS  = -O3 $(COMMON_FOPTS)
-  FDEBG  = 
+  FDEBG  =
+else ifeq ($(cfg),nvhpc-cpu)
+  FC     = mpif90
+  FOPTS  = -O3 -Kieee -Minfo=accel -target=multicore -acc -cpp -DDOUBLE_PREC
+  FDEBG  =
 else
   FC     = mpif90
   FOPTS  = -O3 $(COMMON_FOPTS)
-  FDEBG  = 
+  FDEBG  =
 endif
 
-# HDF5 paths (uncomment and adjust if needed)
-HDF5_INC = # -I/opt/homebrew/include
-HDF5_LIB = # -L/opt/homebrew/lib -lhdf5_fortran -lhdf5
+# HDF5 paths
+HDF5_INC =
+HDF5_LIB =
 
 # FFT library and include paths
 INCLUDE = -I../lib/2decomp-fft/build/opt/include $(HDF5_INC)
 
-# Check for library file directly (more reliable than directory check)
+# Check for library file directly
 LIB_FILE_64 := $(wildcard ../lib/2decomp-fft/build/opt/lib64/libdecomp2d.a)
-LIB_FILE := $(wildcard ../lib/2decomp-fft/build/opt/lib/libdecomp2d.a)
+LIB_FILE    := $(wildcard ../lib/2decomp-fft/build/opt/lib/libdecomp2d.a)
 
 # Determine which library to use
 ifneq ($(LIB_FILE_64),)
@@ -140,7 +147,11 @@ OBJS1 = $(addprefix $(DIR_OBJ)/, \
       poisson_fishpack.o \
       poisson_1stderivcomp_fft2d.o \
       poisson_interface.o \
+<<<<<<< master
       eq_continuity.o \
+=======
+			eq_continuity.o \
+>>>>>>> master
       bc_convective_outlet.o \
       eq_energy.o \
       eq_mhd.o \
@@ -166,8 +177,16 @@ define progress
     @printf "(%2d/%2d) [%3d%%] Compiling %s\n" $(COUNTER) $(TOTAL_OBJS) $(PERCENT) $(notdir $<)
 endef
 
-# Default rule
+# Default targets
 default: all
+
+all: $(DIR_BIN)/$(PROGRAM)
+	@echo ""
+	@echo "========================================================================="
+	@echo "  CHAPSim2 Build System"
+	@echo "  Configuration: $(cfg)"
+	@echo "========================================================================="
+	@echo ""
 
 # Main target for building the program
 $(DIR_BIN)/$(PROGRAM): $(OBJS1) $(OBJS2)
@@ -179,7 +198,8 @@ $(DIR_BIN)/$(PROGRAM): $(OBJS1) $(OBJS2)
 	@echo "  Library: $(DECOMP_LIB)"
 	@echo "========================================================================="
 	@mkdir -p $(@D)
-	$(FC) $(FOPTS) $(FDEBG) $(ARCH_FLAGS) -o $@ $^ $(LIBS)
+	@$(FC) $(FOPTS) $(FDEBG) $(ARCH_FLAGS) -o $@ $^ $(LIBS) >> build.log 2>&1 || \
+	  { echo "❌ Link failed. Last 40 lines of build.log:"; tail -40 build.log; exit 1; }
 	@echo ""
 	@echo "========================================================================="
 	@echo "  ✅ Successfully compiled $(PROGRAM)"
@@ -191,23 +211,15 @@ $(DIR_BIN)/$(PROGRAM): $(OBJS1) $(OBJS2)
 $(DIR_OBJ)/%.o: $(DIR_SRC)/%.f90
 	@mkdir -p $(@D)
 	$(call progress)
-	@$(FC) $(INCLUDE) $(FOPTS) $(FDEBG) -c $< -o $@ 2>&1 | tee -a build.log
+	@$(FC) $(INCLUDE) $(FOPTS) $(FDEBG) -c $< -o $@ >> build.log 2>&1 || \
+	  { echo "❌ Compile failed for $<. Last 40 lines of build.log:"; tail -40 build.log; exit 1; }
 
 # Rule to compile Fortran 77 files
 $(DIR_OBJ)/%.o: $(DIR_LIB)/%.f
 	@mkdir -p $(@D)
 	$(call progress)
-	@$(FC) $(F77_OPTS) -c $< -o $@ 2>&1 | tee -a build.log
-
-# Default build target
-all:
-	@echo ""
-	@echo "========================================================================="
-	@echo "  CHAPSim2 Build System"
-	@echo "  Configuration: $(cfg)"
-	@echo "========================================================================="
-	@echo ""
-	@$(MAKE) $(DIR_BIN)/$(PROGRAM)
+	@$(FC) $(F77_OPTS) -c $< -o $@ >> build.log 2>&1 || \
+	  { echo "❌ Compile failed for $<. Last 40 lines of build.log:"; tail -40 build.log; exit 1; }
 
 # Verify library target
 verify-lib:
@@ -253,6 +265,7 @@ help:
 	@echo "  make cfg=gnu-debug    - Build with debug + DEBUG_STEPS"
 	@echo "  make cfg=intel        - Build with Intel compiler"
 	@echo "  make cfg=cray         - Build with Cray compiler"
+	@echo "  make cfg=nvhpc-cpu    - Build with NVHPC CPU config"
 	@echo "  make clean            - Remove all build artifacts"
 	@echo "  make verify-lib       - Verify 2decomp library integrity"
 	@echo "  make help             - Show this help message"

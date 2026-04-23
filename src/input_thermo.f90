@@ -1249,7 +1249,7 @@ contains
     real(WP) :: Ts, rd, lownoise
     real(WP) :: rhoh_bulk(2)
     character(len = 80) :: str
-    
+
     if (nrank == 0) call Print_debug_start_msg("Initialise thermal variables ...")
 
     dtmp = dm%dccc
@@ -1259,23 +1259,23 @@ contains
     select case (tm%inittype)
     case (INIT_GVCONST)
       if (nrank == 0) then
-      call Print_debug_mid_msg("The initial thermal properties (undim) are")
-      write (*, wrtfmt1r) '  Temperature:',          tm%ftp_ini%t
-      write (*, wrtfmt1r) '  Density:',              tm%ftp_ini%d
-      write (*, wrtfmt1r) '  Dynamic Viscosity:',    tm%ftp_ini%m
-      write (*, wrtfmt1r) '  Thermal Conductivity:', tm%ftp_ini%k
-      write (*, wrtfmt1r) '  Cp:',                   tm%ftp_ini%cp
-      write (*, wrtfmt1r) '  Enthalphy:',            tm%ftp_ini%h
-      write (*, wrtfmt1r) '  mass enthaphy:',        tm%ftp_ini%rhoh
-    end if
-    tm%tTemp = tm%ftp_ini%t
+        call Print_debug_mid_msg("The initial thermal properties (undim) are")
+        write (*, wrtfmt1r) '  Temperature:',          tm%ftp_ini%t
+        write (*, wrtfmt1r) '  Density:',              tm%ftp_ini%d
+        write (*, wrtfmt1r) '  Dynamic Viscosity:',    tm%ftp_ini%m
+        write (*, wrtfmt1r) '  Thermal Conductivity:', tm%ftp_ini%k
+        write (*, wrtfmt1r) '  Cp:',                   tm%ftp_ini%cp
+        write (*, wrtfmt1r) '  Enthalphy:',            tm%ftp_ini%h
+        write (*, wrtfmt1r) '  mass enthaphy:',        tm%ftp_ini%rhoh
+      end if
+      tm%tTemp = tm%ftp_ini%t
     case (INIT_GVBCLN)
       if (dm%ibcy_Tm(2) == IBC_DIRICHLET) then
-      if (dm%ibcy_Tm(1) == IBC_DIRICHLET) then
-        Ts = dm%fbcy_const(1, 5)
-      else
-        Ts = tm%ftp_ini%t
-      end if
+        if (dm%ibcy_Tm(1) == IBC_DIRICHLET) then
+          Ts = dm%fbcy_const(1, 5)
+        else
+          Ts = tm%ftp_ini%t
+        end if
         do j = 1, dtmp%xsz(2)
           jj = dtmp%xst(2) + j - 1
           tm%tTemp(:, j, :) = (dm%yc(jj) - dm%lyb) / (dm%lyt - dm%lyb) * &
@@ -1289,7 +1289,7 @@ contains
     ! Refresh thermal properties from temperature
     !--------------------------------------------------------------------------------------------------------
     call ftp_refresh_thermal_properties_from_T_undim_3Dtm(fl, tm, dm)
-
+    
     if(dm%ibcx_Tm(1) == IBC_PERIODIC .and. &
        dm%ibcx_Tm(2) == IBC_PERIODIC) then
       if(dm%ibcy_Tm(1) == IBC_NEUMANN .or. &
@@ -1315,14 +1315,14 @@ contains
             ii = dtmp%xst(1) + i - 1
             call generate_random11_mixhash(ii, jj, kk, n, rd)
             tm%tTemp(i, j, k) = tm%tTemp(i, j, k) * (ONE + lownoise * rd)
-      end do
+          end do
         end do
       end do
     end if
     !--------------------------------------------------------------------------------------------------------
     ! Refresh thermal properties from temperature
     !--------------------------------------------------------------------------------------------------------
-      call ftp_refresh_thermal_properties_from_T_undim_3Dtm(fl, tm, dm)
+    call ftp_refresh_thermal_properties_from_T_undim_3Dtm(fl, tm, dm)
     !
     if(dm%ibcx_Tm(1) == IBC_PERIODIC .and. &
        dm%ibcx_Tm(2) == IBC_PERIODIC) then

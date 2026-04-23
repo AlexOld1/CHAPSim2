@@ -20,18 +20,22 @@ build/*.mod
 *.log
 *.dat
 *.png
-
+.codex
+chapsim2.code-workspace
+.codex/
 # ------------------------
 # Tests folder
 # Ignore everything recursively in tests, except specific files
 # ------------------------
+#examples/
 tests/*/**
 tests/*/regression_test_metrics.json
 !tests/*/*.sh
 !tests/*/*.ini
 !tests/*/*.DAT
 !tests/*/reference.json
-!tests/**/1_data/*outlet*.bin
+!tests/*_inout*/1_data/
+!tests/*_inout*/1_data/*outlet*.bin
 
 # ------------------------
 # Libraries

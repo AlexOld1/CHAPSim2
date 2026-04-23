@@ -59,7 +59,7 @@ contains
     real(WP) :: eta_delta
     real(WP) :: alpha, beta, gamma, delta 
     
-    real(WP) :: mm, ymin, ymax, ff
+    real(WP) :: mm, ymin, ymax, ff, expo
     real(WP), dimension(n) :: eta
 
     if(dm%mstret /= MSTRET_POWL) then 
@@ -122,12 +122,43 @@ contains
     end if
 
     beta = dm%rstret
+    if (beta <= MINP) call Print_error_msg('Powerlaw stretching factor must be positive.')
+    expo = ONE / beta
     do j = 1, n
       !----------------------------------------------------------------------------------------------------------
       ! y \in [-1, 1] or [0, 1]
       !----------------------------------------------------------------------------------------------------------
-      y(j) = eta(j)**int(beta)
-      mp(j, 1) = beta * eta(j)**(int(beta)-1)
+      if (dm%istret == ISTRET_2SIDES) then
+        if (eta(j) <= HALF) then
+          y(j) = HALF * (TWO * eta(j))**expo
+          if (eta(j) <= ZERO) then
+            mp(j, 1) = ZERO
+          else
+            mp(j, 1) = expo * (TWO * eta(j))**(expo-ONE)
+          end if
+        else
+          y(j) = ONE - HALF * (TWO * (ONE - eta(j)))**expo
+          if (eta(j) >= ONE) then
+            mp(j, 1) = ZERO
+          else
+            mp(j, 1) = expo * (TWO * (ONE - eta(j)))**(expo-ONE)
+          end if
+        end if
+      else if (dm%istret == ISTRET_BOTTOM) then
+        y(j) = eta(j)**expo
+        if (eta(j) <= ZERO) then
+          mp(j, 1) = ZERO
+        else
+          mp(j, 1) = expo * eta(j)**(expo-ONE)
+        end if
+      else if (dm%istret == ISTRET_TOP) then
+        y(j) = ONE - (ONE - eta(j))**expo
+        if (eta(j) >= ONE) then
+          mp(j, 1) = ZERO
+        else
+          mp(j, 1) = expo * (ONE - eta(j))**(expo-ONE)
+        end if
+      end if
       if(mp(j, 1) < MINP .and. mp(j, 1) > MAXN) then
         mp(j, 1) = ONE
         if(nrank==0) call Print_warning_msg('Th mapping function for '//trim(str)//' at j = '//trim(int2str(j))//' is adjusted.')
@@ -167,7 +198,7 @@ contains
     real(WP) :: eta_delta
     real(WP) :: alpha, beta, gamma, delta
     
-    real(WP) :: mm, ymin, ymax, ff
+    real(WP) :: mm, ymin, ymax, ff, arg
     real(WP), dimension(n) :: eta
 
     if(dm%mstret /= MSTRET_TANH) then 
@@ -223,8 +254,8 @@ contains
       ymin = -ONE
       ymax = ONE
     else if (dm%istret == ISTRET_BOTTOM) then
-      gamma = -ONE
-      delta = ONE
+      gamma = ONE
+      delta = ZERO
       ymin = ZERO
       ymax = ONE
     else if (dm%istret == ISTRET_TOP) then
@@ -237,7 +268,6 @@ contains
     end if
 
     beta = dm%rstret * TWENTY
-    mm = tanh_wp(beta * gamma)
     do j = 1, n
       !----------------------------------------------------------------------------------------------------------
       ! y \in [-1, 1] or [0, 1]
@@ -245,14 +275,30 @@ contains
       if (present(opt_yp) .and. trim( str ) == 'cl') then
         y(j) = ( opt_yp(j) + opt_yp(j + 1)) * HALF
       else
-        y(j) = tanh_wp(beta * (eta(j) - delta)) / mm
+        if (dm%istret == ISTRET_2SIDES) then
+          mm = tanh_wp(beta * HALF)
+          y(j) = tanh_wp(beta * (eta(j) - HALF)) / mm
+          y(j) = (y(j) + ONE) * HALF
+        else if (dm%istret == ISTRET_BOTTOM) then
+          mm = tanh_wp(beta)
+          arg = beta * (ONE - eta(j))
+          y(j) = ONE - tanh_wp(arg) / mm
+        else if (dm%istret == ISTRET_TOP) then
+          mm = tanh_wp(beta)
+          arg = beta * eta(j)
+          y(j) = tanh_wp(arg) / mm
+        end if
       end if
-      mp(j, 1) = ONE - y(j) * y(j) * mm * mm
+      if (dm%istret == ISTRET_2SIDES) then
+        mp(j, 1) = TWO * mm / beta * cosh(beta * (eta(j) - HALF))**2
+      else if (dm%istret == ISTRET_BOTTOM) then
+        mp(j, 1) = mm / beta * cosh(arg)**2
+      else if (dm%istret == ISTRET_TOP) then
+        mp(j, 1) = mm / beta * cosh(arg)**2
+      end if
       if(mp(j, 1) < MINP .and. mp(j, 1) > MAXN) then
         mp(j, 1) = ONE
         if(nrank==0) call Print_warning_msg('Th mapping function for '//trim(str)//' at j = '//trim(int2str(j))//' is adjusted.')
-      else
-        mp(j, 1) = mm/beta / mp(j, 1)
       end if
       !----------------------------------------------------------------------------------------------------------
       ! y \in [lyb, lyt]
@@ -347,6 +393,7 @@ contains
       end do
       return
     else if (dm%istret == ISTRET_CENTRE) then
+      call Print_warning_msg('ISTRET_CENTRE is not valid for MSTRET_3FMD because the mapping is non-monotone.')
       gamma = ONE
       delta = ZERO
     else if (dm%istret == ISTRET_2SIDES) then
@@ -694,4 +741,3 @@ contains
     return
   end subroutine  Buildup_geometry_mesh_info
 end module geometry_mod
-

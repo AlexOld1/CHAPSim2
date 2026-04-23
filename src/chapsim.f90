@@ -219,10 +219,11 @@ subroutine Solve_eqs_iteration
   integer :: iter, isub
   integer :: iteration
   integer :: niter
+  logical :: is_timing_iter
   real(WP) :: maxmin_ep(2), maxmin_temp(2), &
               maxmin_qx(2), maxmin_qy(2), maxmin_qz(2), &
               maxmin_pr(2), maxmin_ph(2)
-  
+              
   !==========================================================================================================
   ! flow advancing/marching iteration/time control
   !==========================================================================================================
@@ -249,7 +250,8 @@ subroutine Solve_eqs_iteration
   if(nrank == 0) call Print_debug_start_msg("Solving the governing equations ...")
 
   do iter = iteration + 1, niter
-    if( mod(iter, cpu_nfre) == 0) then
+    is_timing_iter = (mod(iter, cpu_nfre) == 0)
+    if( is_timing_iter ) then
       call call_cpu_time(CPU_TIME_ITER_START, iteration, niter, iter)
     else
       if(nrank == 0 .and. .not. is_IO_off) call Print_debug_start_msg ("Time Step = "//trim(int2str(iter))// &
@@ -304,12 +306,18 @@ subroutine Solve_eqs_iteration
       !  append and write out outlet data every real-iteration (not RK sub)
       !----------------------------------------------------------------------------------------------------------
       if(is_flow(i) .and. domain(i)%is_record_xoutlet .and. iter >= domain(i)%ndbstart) then
+        if(is_timing_iter) call call_cpu_time(CPU_TIME_ITER_SOLVER, iteration, niter, iter)
         call write_instantaneous_xoutlet(flow(i), domain(i))
+        if(is_timing_iter) call call_cpu_time(CPU_TIME_ITER_IO, iteration, niter, iter)
       end if
       !----------------------------------------------------------------------------------------------------------
       ! to read instantaneous inlet from database, real, not sub-RK
       !----------------------------------------------------------------------------------------------------------
-      if(domain(i)%is_read_xinlet) call read_instantaneous_xinlet(flow(i), domain(i))     
+      if(domain(i)%is_read_xinlet) then
+        if(is_timing_iter) call call_cpu_time(CPU_TIME_ITER_SOLVER, iteration, niter, iter)
+        call read_instantaneous_xinlet(flow(i), domain(i))
+        if(is_timing_iter) call call_cpu_time(CPU_TIME_ITER_IO, iteration, niter, iter)
+      end if
     end do
     !==========================================================================================================
     !  main solver, domain coupling in each sub-iteration (check)
@@ -373,12 +381,16 @@ subroutine Solve_eqs_iteration
       !----------------------------------------------------------------------------------------------------------
       !if(domain(i)%icase == ICASE_TGV2D) call Validate_TGV2D_error (flow(i), domain(i))
       if((.not. domain(i)%is_thermo) .and. is_flow(i)) then
+        if(is_timing_iter) call call_cpu_time(CPU_TIME_ITER_SOLVER, iteration, niter, iter)
         call write_monitor_bulk(flow(i), domain(i))
         call write_monitor_probe(flow(i), domain(i))
+        if(is_timing_iter) call call_cpu_time(CPU_TIME_ITER_MONITOR, iteration, niter, iter)
       end if
       if(domain(i)%is_thermo .and. is_thermo(i)) then
+        if(is_timing_iter) call call_cpu_time(CPU_TIME_ITER_SOLVER, iteration, niter, iter)
         call write_monitor_bulk(flow(i), domain(i), thermo(i))
         call write_monitor_probe(flow(i), domain(i), thermo(i))
+        if(is_timing_iter) call call_cpu_time(CPU_TIME_ITER_MONITOR, iteration, niter, iter)
       end if
       !----------------------------------------------------------------------------------------------------------
       !  validation for each time step
@@ -405,6 +417,7 @@ subroutine Solve_eqs_iteration
       !  write out check point data for restart
       !----------------------------------------------------------------------------------------------------------
       if (mod(iter, domain(i)%ckpt_nfre) == 0 .or. iter==niter) then
+        if(is_timing_iter) call call_cpu_time(CPU_TIME_ITER_SOLVER, iteration, niter, iter)
         if(is_flow(i)) then
           call write_instantaneous_flow(flow(i), domain(i))
           if(iter > domain(i)%stat_istart) call write_stats_flow(flow(i), domain(i))
@@ -413,11 +426,13 @@ subroutine Solve_eqs_iteration
           call write_instantaneous_thermo(thermo(i), domain(i))
           if(iter > domain(i)%stat_istart) call write_stats_thermo(thermo(i), domain(i))
         end if
+        if(is_timing_iter) call call_cpu_time(CPU_TIME_ITER_IO, iteration, niter, iter)
       end if
       !----------------------------------------------------------------------------------------------------------
       ! write data for visualisation
       !----------------------------------------------------------------------------------------------------------
       if(MOD(iter, domain(i)%visu_nfre) == 0 .or. iter==niter) then
+        if(is_timing_iter) call call_cpu_time(CPU_TIME_ITER_SOLVER, iteration, niter, iter)
         if(is_flow(i)) call write_visu_flow(flow(i), domain(i))
         if(domain(i)%is_mhd) call write_visu_mhd(mhd(i), flow(i), domain(i))
         if(domain(i)%is_thermo .and. is_thermo(i)) then
@@ -432,12 +447,16 @@ subroutine Solve_eqs_iteration
             call write_visu_stats_mhd(mhd(i), domain(i))
           end if
         end if
+        if(is_timing_iter) call call_cpu_time(CPU_TIME_ITER_IO, iteration, niter, iter)
       end if
 
     end do ! domain
     end if
 
-    if( mod(iter, cpu_nfre) == 0) call call_cpu_time(CPU_TIME_ITER_END, iteration, niter, iter)
+    if( is_timing_iter ) then
+      call call_cpu_time(CPU_TIME_ITER_SOLVER, iteration, niter, iter)
+      call call_cpu_time(CPU_TIME_ITER_END, iteration, niter, iter)
+    end if
 
   end do ! iteration
 

@@ -298,9 +298,9 @@ subroutine Check_cfl_diffusion(fl, dm, opt_tm)
     type(t_thermo), intent(in), optional :: opt_tm
 
     real(WP) :: cfl_diff_mom, cfl_diff_ene, cfl_diff_mom_work, cfl_diff_ene_work
-    real(WP) :: rtmp, rdxyz2, dyi, dtmax_mom, dtmax_ene, dtmax_mom_work, dtmax_ene_work
+    real(WP) :: rtmp, rdxyz2, dyi, dtmax_mom_work, dtmax_ene_work
     integer :: i, j, k, jj
-    real(wp) :: rsp(3), var(4), var_work(4)
+    real(wp) :: rsp(3), var(2), var_work(2)
     
     cfl_diff_mom = ZERO
     cfl_diff_ene = ZERO
@@ -346,25 +346,17 @@ subroutine Check_cfl_diffusion(fl, dm, opt_tm)
       end do
     end do 
 
-    dtmax_mom = ONE / (TWO * fl%rre * cfl_diff_mom)
-    cfl_diff_mom = cfl_diff_mom * TWO * dm%dt * fl%rre
+    var(1) = cfl_diff_mom
+    var(2) = cfl_diff_ene
     
+    call mpi_allreduce(var, var_work, 2, MPI_REAL_WP, MPI_MAX, MPI_COMM_WORLD, ierror)
+
+    cfl_diff_mom_work = var_work(1) * TWO * dm%dt * fl%rre
+    dtmax_mom_work = ONE / (TWO * fl%rre * var_work(1))
     if(dm%is_thermo) then
-      dtmax_ene = ONE / (TWO * opt_tm%rPrRen * cfl_diff_ene)
-      cfl_diff_ene = cfl_diff_ene * TWO * dm%dt * opt_tm%rPrRen
+      cfl_diff_ene_work = var_work(2) * TWO * dm%dt * opt_tm%rPrRen
+      dtmax_ene_work = ONE / (TWO * opt_tm%rPrRen * var_work(2))
     end if
-
-    var(1) = dtmax_mom
-    var(2) = cfl_diff_mom
-    var(3) = dtmax_ene
-    var(4) = cfl_diff_ene
-    
-    call mpi_allreduce(var, var_work, 4, MPI_REAL_WP, MPI_MAX, MPI_COMM_WORLD, ierror)
-
-    dtmax_mom_work = var_work(1)
-    cfl_diff_mom_work = var_work(2)
-    dtmax_ene_work = var_work(3)
-    cfl_diff_ene_work = var_work(4)
 
     if(nrank == 0) then
       write (*, wrtfmt2e) "Momentum diffu. number. & max. dt:", cfl_diff_mom_work, dtmax_mom_work
@@ -410,6 +402,7 @@ subroutine Check_cfl_diffusion(fl, dm, opt_tm)
     use decomp_2d
     use wtformat_mod
     use find_max_min_ave_mod
+    use math_mod, only: abs_wp
     implicit none
 
     type(t_domain), intent(inout) :: dm
@@ -445,7 +438,7 @@ subroutine Check_cfl_diffusion(fl, dm, opt_tm)
                              dm%dccp%zsz(2), &
                              dm%dccp%zsz(3))
     real(WP)   :: dtmax
-    real(wp) :: cfl(2), dy
+    real(wp) :: cfl(2)
     integer :: j
 !----------------------------------------------------------------------------------------------------------
 ! Initialisation
@@ -460,14 +453,14 @@ subroutine Check_cfl_diffusion(fl, dm, opt_tm)
 ! X-pencil : u_ccc / dx
 !----------------------------------------------------------------------------------------------------------
     call Get_x_midp_P2C_3D(u, accc_xpencil, dm, dm%iAccuracy, dm%ibcx_qx, dm%fbcx_qx)
-    var_xpencil = accc_xpencil * dm%h1r(1)
+    var_xpencil = abs_wp(accc_xpencil) * dm%h1r(1)
 !----------------------------------------------------------------------------------------------------------
 ! Y-pencil : v_ccc / dy / r
 !----------------------------------------------------------------------------------------------------------
     call transpose_x_to_y(var_xpencil, var_ypencil, dm%dccc)
     call transpose_x_to_y(v,             v_ypencil, dm%dcpc)
     call Get_y_midp_P2C_3D(v_ypencil, accc_ypencil, dm, dm%iAccuracy, dm%ibcy_qy, dm%fbcy_qy)
-    accc_ypencil = accc_ypencil * dm%h1r(2)
+    accc_ypencil = abs_wp(accc_ypencil) * dm%h1r(2)
     if(dm%is_stretching(2)) then
       do j = 1, dm%dccc%ysz(2)
         accc_ypencil(:, j, :) = accc_ypencil(:, j, :) * dm%yMappingcc(j, 1)
@@ -480,18 +473,18 @@ subroutine Check_cfl_diffusion(fl, dm, opt_tm)
     end if
     var_ypencil = var_ypencil +  accc_ypencil
 !----------------------------------------------------------------------------------------------------------
-! Z-pencil : w_ccc / dz /r2
+! Z-pencil : w_ccc / dz / r
 !----------------------------------------------------------------------------------------------------------
     call transpose_y_to_z(var_ypencil, var_zpencil, dm%dccc)
     call transpose_x_to_y(w,             w_ypencil, dm%dccp)
     if(dm%icoordinate == ICYLINDRICAL) then
       do j = 1, dm%dccp%ysz(2)
-        w_ypencil(:, j, :) = w_ypencil(:, j, :) * dm%rci(j) * dm%rci(j) 
+        w_ypencil(:, j, :) = w_ypencil(:, j, :) * dm%rci(j) 
       end do 
     end if
     call transpose_y_to_z(w_ypencil,     w_zpencil, dm%dccp)
     call Get_z_midp_P2C_3D(w_zpencil, accc_zpencil, dm, dm%iAccuracy, dm%ibcz_qz, dm%fbcz_qz)
-    var_zpencil = var_zpencil +  accc_zpencil * dm%h1r(3)
+    var_zpencil = var_zpencil + abs_wp(accc_zpencil) * dm%h1r(3)
 !----------------------------------------------------------------------------------------------------------
 ! Z-pencil : Find the maximum 
 !----------------------------------------------------------------------------------------------------------

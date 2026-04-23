@@ -444,7 +444,7 @@ contains
     type(t_flow), intent(inout) :: fl
     type(t_domain), intent(inout) :: dm
     integer, intent(in), optional :: opt_iter
-    
+
     character(64):: data_flname_path
     integer :: iter, niter, nblock, nblocks
 
@@ -469,9 +469,9 @@ contains
     ! Only read if current iteration is the first of the block
     ! ----------------------------------------------------------------------------
     if (mod(iter-1, dm%ndbfre)==0 .or. iter == (fl%iterfrom+1)) then
-    nblocks = (dm%ndbend - dm%ndbstart + 1) / dm%ndbfre
-    if ((dm%ndbend - dm%ndbstart + 1) > nblocks*dm%ndbfre) nblocks = nblocks + 1
-    nblock = mod((iter - 1) / dm%ndbfre, nblocks)
+      nblocks = (dm%ndbend - dm%ndbstart + 1) / dm%ndbfre
+      if ((dm%ndbend - dm%ndbstart + 1) > nblocks*dm%ndbfre) nblocks = nblocks + 1
+      nblock = mod((iter - 1) / dm%ndbfre, nblocks)
       niter = dm%ndbfre * nblock
       if(nrank == 0) &
       call Print_debug_mid_msg('Read inlet database at iteration '//trim(int2str(iter))&
@@ -516,6 +516,7 @@ module io_field_interpolation_mod
   private :: Read_input_parameters_tgt
   private :: binary_search_loc2index
   private :: trilinear_interp_point
+  private :: setup_extension_mapping
   private :: build_up_interp_target_field_flow
   public  :: output_interp_target_field
 
@@ -703,6 +704,30 @@ module io_field_interpolation_mod
     RETURN
   END SUBROUTINE trilinear_interp_point
 !==========================================================================================================
+  subroutine setup_extension_mapping(src_len, tgt_len, tgt_spacing, extend_mode, extend_length)
+    use parameters_constant_mod
+    implicit none
+
+    real(WP), intent(in)  :: src_len, tgt_len, tgt_spacing
+    integer , intent(out) :: extend_mode
+    real(WP), intent(out) :: extend_length
+
+    if (src_len > tgt_len) then
+      extend_mode = 1
+    else if (src_len < tgt_len) then
+      extend_mode = 2
+    else
+      extend_mode = 0
+    end if
+
+    extend_length = ZERO
+    if (extend_mode == 2) then
+      extend_length = MAX((tgt_len - src_len) / FIVE, TWO * tgt_spacing)
+    end if
+
+    return
+  end subroutine setup_extension_mapping
+!==========================================================================================================
   subroutine build_up_interp_target_field_flow(fl_src, dm_src, fl_tgt, dm_tgt)
     use udf_type_mod
     use parameters_constant_mod
@@ -713,15 +738,12 @@ module io_field_interpolation_mod
     type(t_flow)  , intent(in)    :: fl_src
     type(t_domain), intent(inout) :: dm_tgt
     type(t_flow)  , intent(inout) :: fl_tgt
-    ! 
-    integer  :: imode, i, j, k
-    real(WP) :: Lbuf_x
+    !
+    integer  :: imode_x, imode_z, i, k
+    real(WP) :: Lbuf_x, Lbuf_z
     real(WP) :: xc_src(dm_src%nc(1)), zc_src(dm_src%nc(3))
     real(WP) :: xp_src(dm_src%np(1)), zp_src(dm_src%np(3))
     !
-    if (abs(dm_src%lzz - dm_tgt%lzz) > 1.0e-10_wp) then
-      call print_error_msg("build_up_interp_target_field_flow: cross-section mismatch in z")
-    end if
     if (abs(dm_src%lyt - dm_tgt%lyt) > 1.0e-10_wp) then
       call print_error_msg("build_up_interp_target_field_flow: cross-section mismatch in yt")
     end if
@@ -731,19 +753,8 @@ module io_field_interpolation_mod
     !-----------------------------------------
     ! extension controls
     !-----------------------------------------
-    if (dm_src%lxx > dm_tgt%lxx) then
-      imode = 1 ! clamp to source bounds, i.e., constant extrapolation outside source bounds
-    else if (dm_src%lxx < dm_tgt%lxx) then
-      imode = 2 ! extend by repeating the source field in x direction
-    else 
-      imode = 0 ! no extension/clammping needed, source and target have the same x length
-    end if
-    !
-    ! default repeated chunk length
-    Lbuf_x = ZERO
-    if (imode == 2) then
-      Lbuf_x = MAX((dm_tgt%lxx - dm_src%lxx) / FIVE, TWO * dm_tgt%h(1))
-    end if
+    call setup_extension_mapping(dm_src%lxx, dm_tgt%lxx, dm_tgt%h(1), imode_x, Lbuf_x)
+    call setup_extension_mapping(dm_src%lzz, dm_tgt%lzz, dm_tgt%h(3), imode_z, Lbuf_z)
     !-----------------------------------------
     ! source coordinates
     !-----------------------------------------
@@ -758,28 +769,28 @@ module io_field_interpolation_mod
         xp_src, dm_src%yc, zc_src,                                  &
         fl_src%qx, fl_tgt%qx, dm_tgt%dpcc,                          &
         XLOC_FACE, YLOC_CELL, ZLOC_CELL,                            &
-        imode, Lbuf_x)
+        imode_x, Lbuf_x, imode_z, Lbuf_z)
 
     ! qy : x-center, y-face, z-center
     call interp_field_3d_generic(dm_src, dm_tgt,                    &
         xc_src, dm_src%yp, zc_src,                                  &
         fl_src%qy, fl_tgt%qy, dm_tgt%dcpc,                          &
         XLOC_CELL, YLOC_FACE, ZLOC_CELL,                            &
-        imode, Lbuf_x)
+        imode_x, Lbuf_x, imode_z, Lbuf_z)
 
     ! qz : x-center, y-center, z-face
     call interp_field_3d_generic(dm_src, dm_tgt,                    &
         xc_src, dm_src%yc, zp_src,                                  &
         fl_src%qz, fl_tgt%qz, dm_tgt%dccp,                          &
         XLOC_CELL, YLOC_CELL, ZLOC_FACE,                            &
-        imode, Lbuf_x)
+        imode_x, Lbuf_x, imode_z, Lbuf_z)
 
     ! pressure : x-center, y-center, z-center
     call interp_field_3d_generic(dm_src, dm_tgt,                     &
         xc_src, dm_src%yc, zc_src,                                  &
         fl_src%pres, fl_tgt%pres, dm_tgt%dccc,                      &
         XLOC_CELL, YLOC_CELL, ZLOC_CELL,                            &
-        imode, Lbuf_x)
+        imode_x, Lbuf_x, imode_z, Lbuf_z)
     return
   end subroutine build_up_interp_target_field_flow
 !==========================================================================================================
@@ -794,14 +805,11 @@ module io_field_interpolation_mod
     type(t_domain), intent(inout) :: dm_tgt
     type(t_thermo), intent(inout) :: tm_tgt
     !
-    integer  :: imode, i, j, k
-    real(WP) :: Lbuf_x
+    integer  :: imode_x, imode_z, i, k
+    real(WP) :: Lbuf_x, Lbuf_z
     real(WP) :: xc_src(dm_src%nc(1)), zc_src(dm_src%nc(3))
     real(WP) :: xp_src(dm_src%np(1)), zp_src(dm_src%np(3))
     !
-    if (abs(dm_src%lzz - dm_tgt%lzz) > 1.0e-10_wp) then
-      call print_error_msg("build_up_interp_target_field_flow: cross-section mismatch in z")
-    end if
     if (abs(dm_src%lyt - dm_tgt%lyt) > 1.0e-10_wp) then
       call print_error_msg("build_up_interp_target_field_flow: cross-section mismatch in yt")
     end if
@@ -811,19 +819,8 @@ module io_field_interpolation_mod
     !-----------------------------------------
     ! extension controls
     !-----------------------------------------
-    if (dm_src%lxx > dm_tgt%lxx) then
-      imode = 1 ! clamp to source bounds, i.e., constant extrapolation outside source bounds
-    else if (dm_src%lxx < dm_tgt%lxx) then
-      imode = 2 ! extend by repeating the source field in x direction
-    else 
-      imode = 0 ! no extension/clammping needed, source and target have the same x length
-    end if
-    !
-    ! default repeated chunk length
-    Lbuf_x = ZERO
-    if (imode == 2) then
-      Lbuf_x = MAX((dm_tgt%lxx - dm_src%lxx) / FIVE, TWO * dm_tgt%h(1))
-    end if
+    call setup_extension_mapping(dm_src%lxx, dm_tgt%lxx, dm_tgt%h(1), imode_x, Lbuf_x)
+    call setup_extension_mapping(dm_src%lzz, dm_tgt%lzz, dm_tgt%h(3), imode_z, Lbuf_z)
     !-----------------------------------------
     ! source coordinates
     !-----------------------------------------
@@ -838,19 +835,21 @@ module io_field_interpolation_mod
         xc_src, dm_src%yc, zc_src,                                  &
         tm_src%rhoh, tm_tgt%rhoh, dm_tgt%dccc,                      &
         XLOC_CELL, YLOC_CELL, ZLOC_CELL,                            &
-        imode, Lbuf_x)
+        imode_x, Lbuf_x, imode_z, Lbuf_z)
 
     ! tTemp : x-center, y-center, z-center
     call interp_field_3d_generic(dm_src, dm_tgt,                     &
         xc_src, dm_src%yc, zc_src,                                  &
         tm_src%tTemp, tm_tgt%tTemp, dm_tgt%dccc,                      &
         XLOC_CELL, YLOC_CELL, ZLOC_CELL,                            &
-        imode, Lbuf_x)
+        imode_x, Lbuf_x, imode_z, Lbuf_z)
     return
   end subroutine build_up_interp_target_field_thermo
 !==========================================================================================================
   subroutine interp_field_3d_generic(dm_src, dm_tgt, xsrc, ysrc, zsrc, fsrc, ftgt, dtmp, &
-                                    xloc_tgt, yloc_tgt, zloc_tgt, extend_mode, extend_length)
+                                    xloc_tgt, yloc_tgt, zloc_tgt,                           &
+                                    extend_mode_x, extend_length_x,                         &
+                                    extend_mode_z, extend_length_z)
     use udf_type_mod
     use parameters_constant_mod
     implicit none
@@ -862,16 +861,18 @@ module io_field_interpolation_mod
     real(WP)         , intent(in)    :: fsrc(:, :, :)
     real(WP)         , intent(inout) :: ftgt(:, :, :)
     integer          , intent(in)    :: xloc_tgt, yloc_tgt, zloc_tgt
-    integer          , intent(in)    :: extend_mode
-    real(WP)         , intent(in)    :: extend_length
+    integer          , intent(in)    :: extend_mode_x, extend_mode_z
+    real(WP)         , intent(in)    :: extend_length_x, extend_length_z
     !
     integer :: i, j, k, ii, jj, kk
     real(WP) :: x_target, y_target, z_target
-    real(WP) :: x_tgt_eff, var_target
+    real(WP) :: x_tgt_eff, z_tgt_eff, var_target
 
     do k = 1, dtmp%xsz(3)
       kk = dtmp%xst(3) + k - 1
       z_target = get_coord_from_loc(3, kk, dm_tgt, zloc_tgt)
+      z_tgt_eff = map_coord_to_src_bounds(z_target, zsrc(1), zsrc(size(zsrc)), &
+                                          extend_length_z, extend_mode_z)
 
       do j = 1, dtmp%xsz(2)
         jj = dtmp%xst(2) + j - 1
@@ -881,10 +882,10 @@ module io_field_interpolation_mod
           ii = dtmp%xst(1) + i - 1
           x_target = get_coord_from_loc(1, ii, dm_tgt, xloc_tgt)
 
-          x_tgt_eff = map_x_to_src_bounds(x_target, xsrc(1), xsrc(size(xsrc)), &
-                                          extend_length, extend_mode)
+          x_tgt_eff = map_coord_to_src_bounds(x_target, xsrc(1), xsrc(size(xsrc)), &
+                                              extend_length_x, extend_mode_x)
 
-          call trilinear_interp_point(x_tgt_eff, y_target, z_target, &
+          call trilinear_interp_point(x_tgt_eff, y_target, z_tgt_eff, &
                                       xsrc, ysrc, zsrc, fsrc, var_target)
 
           ftgt(i, j, k) = var_target
@@ -935,7 +936,7 @@ module io_field_interpolation_mod
     return
   end function get_coord_from_loc
 !==========================================================================================================
-  pure function map_x_to_src_bounds(x_tgt, x_min, x_max, Lbuf, mode) result(x_tgt_eff)
+  pure function map_coord_to_src_bounds(x_tgt, x_min, x_max, Lbuf, mode) result(x_tgt_eff)
     use parameters_constant_mod
     implicit none
 
@@ -973,7 +974,7 @@ module io_field_interpolation_mod
 
     end select
 
-  end function map_x_to_src_bounds
+  end function map_coord_to_src_bounds
 !==========================================================================================================
   subroutine output_interp_target_field(dm_src, fl_src, tm_src)
     use parameters_constant_mod
