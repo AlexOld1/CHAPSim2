@@ -12,12 +12,6 @@ module io_tools_mod
   character(*), parameter :: io_restart = "restart-io"
   character(*), parameter :: io_in2outlet = "outlet2inlet-io"
 
-  integer, parameter :: Ivisu_3D    = 0, &
-                        Ivisu_2D_YZ = 1, & ! yz plane, should not change this value. 
-                        Ivisu_2D_XZ = 2, & ! xz plane
-                        Ivisu_2D_XY = 3, & ! xy plane
-                        Ivisu_1D_Y  = 4    ! y profile
-
   public :: initialise_decomp_io
   !public :: generate_file_name
   public :: generate_pathfile_name
@@ -54,24 +48,67 @@ contains
   end subroutine
 !==========================================================================================================
 !==========================================================================================================
-  subroutine write_one_3d_array(var, keyword, idom, iter, dtmp, opt_flname)
+  subroutine write_one_3d_array(var, field_name, idom, iter, dtmp, io_mode)
+    use typeconvert_mod
     implicit none 
     real(WP), contiguous, intent(in) :: var( :, :, :)
     type(DECOMP_INFO), intent(in) :: dtmp
-    character(*), intent(in) :: keyword
+    character(*), intent(in) :: field_name
     integer, intent(in) :: idom
     integer, intent(in) :: iter
-    character(64), intent(out), optional :: opt_flname
+    integer, intent(in) :: io_mode
 
-    character(64):: data_flname_path
+    character(256):: field_file
+    logical :: ex
+    character(len=:), allocatable :: bak_file
+    logical :: do_write
 
-    call generate_pathfile_name(data_flname_path, idom, trim(keyword), dir_data, 'bin', iter)
-    if(.not.file_exists(data_flname_path)) &
-    call decomp_2d_write_one(IPENCIL(1), var, trim(data_flname_path), opt_decomp=dtmp)
-    if(present(opt_flname)) opt_flname = data_flname_path
+    call generate_pathfile_name(field_file, idom, trim(field_name), dir_data, 'bin', iter)
 
+    do_write = .true.
+    if(io_mode == IO_MODE_SKIP) then
+      if (file_exists(trim(field_file))) then
+        if (nrank == 0) then
+          call Print_warning_msg("File "//trim(field_file)// &
+                                " already exists; skip writing "//trim(field_name)// &
+                                " at iteration "//trim(int2str(iter)))
+        end if
+        do_write = .false.
+      end if
+    else if (io_mode == IO_MODE_RENAME) then
+      if (file_exists(trim(field_file))) then
+        call rename_existing_file(trim(field_file))
+      end if
+    else
+      ! do nothing, just overwrite if file exists
+    end if
+
+    if (do_write) then
+      if(nrank == 0) call Print_debug_mid_msg("Writing "//trim(dir_data)//"/"//trim(field_file))
+      call decomp_2d_write_one(IPENCIL(1), var, trim(field_file), opt_decomp=dtmp)
+    end if
+    !
     return
   end subroutine
+!==========================================================================================================
+  subroutine rename_existing_file(file_w_path)
+    implicit none
+    character(*), intent(in) :: file_w_path
+    character(256) :: bak_file
+    logical :: ex
+    !
+    ex = file_exists(trim(file_w_path))
+    if(nrank == 0 .and. ex) then
+      bak_file = trim(file_w_path)//'.bak'
+      if (file_exists(trim(bak_file))) then
+        call execute_command_line('rm -f ' // trim(bak_file))
+      end if
+      call execute_command_line('mv ' // trim(file_w_path) // ' ' // trim(bak_file))
+    end if
+    return
+  end subroutine rename_existing_file
+  !==========================================================================================================
+
   
 !==========================================================================================================
   subroutine initialise_decomp_io(dm)
@@ -88,9 +125,9 @@ contains
 ! re-define the grid mesh size, considering the nskip
 ! based on decomp_info of dppp (default one defined)
 !---------------------------------------------------------------------------------------------------------- 
-    if(dm%visu_nskip(1) > 1 .or. dm%visu_nskip(2) > 1 .or. dm%visu_nskip(3) > 1) then
-      call init_coarser_mesh_statV(dm%visu_nskip(1), dm%visu_nskip(2), dm%visu_nskip(3), from1=.true.)
-    end if
+    ! if(dm%visu_nskip(1) > 1 .or. dm%visu_nskip(2) > 1 .or. dm%visu_nskip(3) > 1) then
+    !   call init_coarser_mesh_statV(dm%visu_nskip(1), dm%visu_nskip(2), dm%visu_nskip(3), from1=.true.)
+    ! end if
     !call init_coarser_mesh_statS(dm%stat_nskip(1), dm%stat_nskip(2), dm%stat_nskip(3), is_start1)
 
   end subroutine 

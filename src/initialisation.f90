@@ -102,6 +102,11 @@ contains
       call alloc_x(fl%mVisc,   dm%dccc) ; fl%mVisc = ONE
       call alloc_x(fl%dDens0, dm%dccc)  ; fl%dDens0 = ONE
     end if
+    if(dm%outlet_sponge_layer(1) > MINP) then
+      allocate (fl%rre_sponge_c(dm%dccc%xsz(1))); fl%rre_sponge_c = ZERO
+      allocate (fl%rre_sponge_p(dm%dpcc%xsz(1))); fl%rre_sponge_p = ZERO
+      call Calculate_vis_sponge(fl, dm)  
+    end if
 
     if(nrank == 0) call Print_debug_end_msg()
     return
@@ -134,7 +139,7 @@ contains
     if(dm%is_conv_outlet(1)) then 
       allocate (tm%fbcx_rhoh_rhs0(dm%dccc%xsz(2), dm%dccc%xsz(3))); tm%fbcx_rhoh_rhs0 = ZERO
     end if
-    if(dm%is_conv_outlet(2)) then 
+    if(dm%is_conv_outlet(3)) then 
       allocate (tm%fbcz_rhoh_rhs0(dm%dccc%zsz(1), dm%dccc%xsz(2))); tm%fbcz_rhoh_rhs0 = ZERO
     end if
 
@@ -161,27 +166,25 @@ contains
     use mpi_mod
     use math_mod
     use boundary_conditions_mod
-    use flatten_index_mod
-    use io_visualisation_mod
+    !use flatten_index_mod
+    !use visualisation_field_mod
     use wtformat_mod
     use find_max_min_ave_mod
     use wrt_debug_field_mod
+    implicit none
     type(t_domain),  intent(in) :: dm
     type(t_flow), intent(inout) :: fl
     
-    integer :: seed
     integer :: i, j, k! local id
-    integer :: n, nsz  
     integer :: ii, jj, kk ! global id
-    integer :: seed0 = 123456
-    real(WP) :: rd, lownoise
+    integer :: n, nsz  
+    real(WP) :: rd, lownoise, rnd
     type(DECOMP_INFO) :: dtmp
 
     if(nrank == 0) call Print_debug_inline_msg("Generating random field ...")
     !----------------------------------------------------------------------------------------------------------
     !   Initialisation in x pencil
     !----------------------------------------------------------------------------------------------------------
-    seed = 0
     fl%pres(:, :, :) = ZERO
     fl%pcor(:, :, :) = ZERO
     fl%qx(:, :, :) = ZERO
@@ -204,17 +207,22 @@ contains
       do k = 1, dtmp%xsz(3)
         kk = dtmp%xst(3) + k - 1
         do j = 1, dtmp%xsz(2)
-          jj = dtmp%xst(2) + j - 1 !local2global_yid(j, dtmp)
-          !if( ( ONE - abs_wp(dm%yp(jj)) ) .LT. QUARTER) then
-            !lownoise = fl%noiselevel * fl%noiselevel
-          !else
-            lownoise = fl%noiselevel
-          !end if
+          jj = dtmp%xst(2) + j - 1
+          lownoise = fl%noiselevel
           do i = 1, dtmp%xsz(1)
-            ii = i
-            seed = flatten_index(ii, jj, kk, dtmp%xsz(1), dtmp%ysz(2)) + seed0 * n
-            call initialise_random_number ( seed )
-            call Generate_r_random( -ONE, ONE, rd)
+            ii = dtmp%xst(1) + i - 1
+            ! Method 1: using fortran random number generator
+            !call generate_random11_fortran (ii, jj, kk, n, dtmp%xsz(1), dtmp%ysz(2), r)
+
+            ! Method 2: Stateless index hash for GPU: avoids seed-neighbor correlation striping.
+            !call generate_random11_stateless_hash(ii, jj, kk, n, rd)
+
+            ! Method 3: Integer-only stateless hash (CPU/GPU consistent), then whiten via LCG.
+            ! call generate_random11_LCG_hash(ii, jj, kk, n, rd)        
+
+            ! Method 4: 64-bit XOR / Mix Hash (Stateless, CPU/GPU consistent)
+            call generate_random11_mixhash(ii, jj, kk, n, rd)
+
             if(n == 1) fl%qx(i, j, k) = lownoise * rd
             if(n == 2) fl%qy(i, j, k) = lownoise * HALF * rd * dm%rp(jj)
             if(n == 3) fl%qz(i, j, k) = lownoise * HALF * rd! * dm%rc(jj)
@@ -587,7 +595,7 @@ contains
     use udf_type_mod
     use parameters_constant_mod
     use io_restart_mod
-    use io_visualisation_mod
+    use visualisation_field_mod
     use wtformat_mod
     use solver_tools_mod
     use continuity_eq_mod
@@ -625,7 +633,12 @@ contains
       call Generate_random_field(fl, dm)
 
     else if (fl%inittype == INIT_INLET) then
+      
+      if(dm%is_read_xinlet) then
+        call read_instantaneous_xinlet(fl, dm, opt_iter=1)
+      else
       call Generate_random_field(fl, dm)
+      end if
       call initialise_flow_from_given_inlet(fl, dm)
 
     else if (fl%inittype == INIT_GVCONST) then
@@ -695,7 +708,7 @@ contains
     use thermo_info_mod
     use io_restart_mod
     use statistics_mod
-    use io_visualisation_mod
+    use visualisation_field_mod
     use boundary_conditions_mod
     implicit none
 
@@ -735,9 +748,10 @@ contains
     end if
 
     fl%dDens0(:, :, :) = fl%dDens(:, :, :)
-
+    if(nrank == 0) call Print_debug_mid_msg("update_fbcy_cc_thermo_halo ...")
     if (dm%icase == ICASE_PIPE) call update_fbcy_cc_thermo_halo(tm, dm)
  
+    if(nrank == 0) call Print_debug_mid_msg("write_visu_thermo ...")
     call write_visu_thermo(tm, fl, dm, 'init')
 
     if(nrank == 0) call Print_debug_end_msg()

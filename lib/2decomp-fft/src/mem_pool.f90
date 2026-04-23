@@ -10,6 +10,9 @@ module m_mem_pool
    use iso_c_binding, only: c_size_t, c_loc, c_associated, c_f_pointer, c_ptr, c_null_ptr
    use decomp_2d_constants
    use decomp_2d_mpi, only: nrank, decomp_2d_abort
+#ifdef EVEN
+   use decomp_2d_mpi, only: dims
+#endif
    use m_blk
    use m_info
    use mpi
@@ -28,7 +31,7 @@ module m_mem_pool
       ! True when the list is active
       logical, private :: available = .false.
       ! Default shapes for the 3D blocks
-      integer, dimension(3, 4), public :: shapes
+      integer(c_size_t), dimension(3, 4), public :: shapes
    contains
       ! Initialize the memory pool
       procedure :: init => mem_pool_init
@@ -121,7 +124,7 @@ contains
       ! Arguments
       class(mem_pool), target, intent(inout) :: self
       class(info), intent(in), optional :: decomp
-      integer, intent(in), optional :: shape(:)
+      integer(c_size_t), intent(in), optional :: shape(:)
       integer, intent(in), optional :: blk_n
       logical, intent(in), optional :: blk_init
 
@@ -148,14 +151,14 @@ contains
       self%size = 0_c_size_t
       self%shapes = mem_pool_none
       if (present(decomp)) then
-         call update_size_shapes(self%size, self%shapes, mem_pool_default_type, decomp%xsz)
-         call update_size_shapes(self%size, self%shapes, mem_pool_default_type, decomp%ysz)
-         call update_size_shapes(self%size, self%shapes, mem_pool_default_type, decomp%zsz)
+         call update_size_shapes(self%size, self%shapes, mem_pool_default_type, int(decomp%xsz, c_size_t))
+         call update_size_shapes(self%size, self%shapes, mem_pool_default_type, int(decomp%ysz, c_size_t))
+         call update_size_shapes(self%size, self%shapes, mem_pool_default_type, int(decomp%zsz, c_size_t))
       else if (present(shape)) then
          if (size(shape) == 3) then
             call update_size_shapes(self%size, self%shapes, mem_pool_default_type, shape(:))
          else
-            call update_size_shapes(self%size, self%shapes, shape(1), shape(2:))
+            call update_size_shapes(self%size, self%shapes, int(shape(1)), shape(2:))
          end if
       else
          call decomp_2d_abort(__FILE__, __LINE__, 2, "Invalid arguments")
@@ -308,7 +311,7 @@ contains
       integer, intent(in), optional :: shape(:)
 
       ! Local variables
-      integer, dimension(:), allocatable :: shp
+      integer(c_size_t), dimension(:), allocatable :: shp
 
       ! Safety check
       if (.not. self%available) &
@@ -316,10 +319,12 @@ contains
 
       ! Use the provided shape, or the default one
       if (present(shape)) then
-         shp = shape
+         allocate(shp(size(shape)))
+         shp = int(shape, kind=c_size_t)
          if (product(int(shp, c_size_t)) > self%size) &
             call decomp_2d_abort(__FILE__, __LINE__, 2, "Invalid shape")
       else if (self%shapes(1, 1) /= mem_pool_none) then
+         allocate(shp(3))
          shp = self%shapes(:, 1)
       else
          call decomp_2d_abort(__FILE__, __LINE__, 2, "No shape available")
@@ -343,7 +348,7 @@ contains
       integer, intent(in), optional :: shape(:)
 
       ! Local variables
-      integer, dimension(:), allocatable :: shp
+      integer(c_size_t), dimension(:), allocatable :: shp
 
       ! Safety check
       if (.not. self%available) &
@@ -351,10 +356,12 @@ contains
 
       ! Use the provided shape, or the default one
       if (present(shape)) then
-         shp = shape
+         allocate(shp(size(shape)))
+         shp = int(shape, kind=c_size_t)
          if (2_c_size_t * product(int(shp, c_size_t)) > self%size) &
             call decomp_2d_abort(__FILE__, __LINE__, 2, "Invalid shape")
       else if (self%shapes(1, 2) /= mem_pool_none) then
+         allocate(shp(3))
          shp = self%shapes(:, 2)
       else
          call decomp_2d_abort(__FILE__, __LINE__, 2, "No shape available")
@@ -378,7 +385,7 @@ contains
       integer, intent(in), optional :: shape(:)
 
       ! Local variables
-      integer, dimension(:), allocatable :: shp
+      integer(c_size_t), dimension(:), allocatable :: shp
 
       ! Safety check
       if (.not. self%available) &
@@ -386,10 +393,12 @@ contains
 
       ! Use the provided shape, or the default one
       if (present(shape)) then
-         shp = shape
+         allocate(shp(size(shape)))
+         shp = int(shape, kind=c_size_t)
          if (2_c_size_t * product(int(shp, c_size_t)) > self%size) &
             call decomp_2d_abort(__FILE__, __LINE__, 2, "Invalid shape")
       else if (self%shapes(1, 3) /= mem_pool_none) then
+         allocate(shp(3))
          shp = self%shapes(:, 3)
       else
          call decomp_2d_abort(__FILE__, __LINE__, 2, "No shape available")
@@ -413,7 +422,7 @@ contains
       integer, intent(in), optional :: shape(:)
 
       ! Local variables
-      integer, dimension(:), allocatable :: shp
+      integer(c_size_t), dimension(:), allocatable :: shp
 
       ! Safety check
       if (.not. self%available) &
@@ -421,10 +430,12 @@ contains
 
       ! Use the provided shape, or the default one
       if (present(shape)) then
-         shp = shape
+         allocate(shp(size(shape)))
+         shp = int(shape, kind=c_size_t)
          if (4_c_size_t * product(int(shp, c_size_t)) > self%size) &
             call decomp_2d_abort(__FILE__, __LINE__, 2, "Invalid shape")
       else if (self%shapes(1, 4) /= mem_pool_none) then
+         allocate(shp(3))
          shp = self%shapes(:, 4)
       else
          call decomp_2d_abort(__FILE__, __LINE__, 2, "No shape available")
@@ -791,7 +802,7 @@ contains
       class(mem_pool), intent(inout) :: self
       integer, intent(in) :: type
       class(info), intent(in), optional :: decomp
-      integer, intent(in), optional :: shp(:)
+      integer(c_size_t), intent(in), optional :: shp(:)
 
       ! Local variables
       integer(c_size_t) :: new_size, fact
@@ -823,6 +834,10 @@ contains
          new_size = fact * product(int(decomp%xsz, kind=c_size_t))
          new_size = max(new_size, fact * product(int(decomp%ysz, kind=c_size_t)))
          new_size = max(new_size, fact * product(int(decomp%zsz, kind=c_size_t)))
+#ifdef EVEN
+         new_size = max(new_size, fact * int(decomp%x1count, c_size_t) * int(dims(1), c_size_t))
+         new_size = max(new_size, fact * int(decomp%y2count, c_size_t) * int(dims(2), c_size_t))
+#endif
       else if (present(shp)) then
          new_size = fact * product(int(shp, kind=c_size_t))
       else
@@ -1030,8 +1045,9 @@ contains
 
       ! Argument
       integer(c_size_t), intent(inout) :: size
-      integer, dimension(:, :), intent(inout) :: shapes
-      integer, intent(in) :: type, shape(:)
+      integer(c_size_t), dimension(:, :), intent(inout) :: shapes
+      integer, intent(in) :: type
+      integer(c_size_t), intent(in) :: shape(:)
 
       ! Local variables
       integer(c_size_t) :: new_size, fact

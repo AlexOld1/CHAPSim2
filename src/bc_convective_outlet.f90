@@ -1,4 +1,3 @@
-
 module bc_convective_outlet_mod
   use parameters_constant_mod
   use decomp_2d
@@ -11,12 +10,15 @@ module bc_convective_outlet_mod
   !public  :: update_flow_from_dyn_fbcx
   private  :: enforce_domain_mass_balance_dyn_fbc
   !private :: enforce_domain_energy_balance_dyn_fbc
-  private :: update_fbcx_convective_outlet_flow
-  private :: update_fbcz_convective_outlet_flow
-  private :: update_fbcx_convective_outlet_thermo
-  private :: update_fbcz_convective_outlet_thermo
-  public  :: update_convective_outlet_thermo
-  public  :: update_convective_outlet_flow
+  private :: compute_fbcx_convective_outlet_flow
+  private :: compute_fbcz_convective_outlet_flow
+  public  :: compute_convective_outlet_thermo
+  public  :: compute_convective_outlet_flow
+
+  private :: correct_fbcx_convective_outlet_flow
+  private :: correct_fbcz_convective_outlet_flow
+  public  :: correct_convective_outlet_flow
+
 
   contains
 
@@ -72,6 +74,7 @@ module bc_convective_outlet_mod
     ! calc convective velocity
     uxdx = HALF * (uxmax_work + uxmin_work)
     uxdx = uxdx * dx
+    !uxdx = max(uxdx, ZERO) ! in case of negative velocity, set to zero to avoid numerical instability.
 #ifdef DEBUG_STEPS 
     if(nrank == 0) write(*, '(10X, A, 3ES13.5)') 'convective outlet velocity Max., Min., Ave = ', &
       uxmax_work, uxmin_work, HALF * (uxmax_work + uxmin_work)
@@ -294,7 +297,7 @@ module bc_convective_outlet_mod
   end subroutine enforce_domain_mass_balance_dyn_fbc
 
 !==========================================================================================================
-  subroutine update_fbcx_convective_outlet_flow(fl, dm, isub)
+  subroutine compute_fbcx_convective_outlet_flow(fl, dm, isub)
     use bc_dirichlet_mod
     use convert_primary_conservative_mod
     implicit none
@@ -356,8 +359,61 @@ module bc_convective_outlet_mod
 
     return
   end subroutine
+
 !==========================================================================================================
-  subroutine update_fbcz_convective_outlet_flow(fl, dm, isub)
+  subroutine correct_fbcx_convective_outlet_flow(fl, dm, isub)
+    use bc_dirichlet_mod
+    use convert_primary_conservative_mod
+    use continuity_eq_mod
+    implicit none
+    ! arguments
+    type(t_flow),   intent(inout) :: fl
+    type(t_domain), intent(inout) :: dm
+    integer,        intent(in)    :: isub
+
+    real(WP), dimension(dm%dccc%xsz(1), dm%dccc%xsz(2), dm%dccc%xsz(3)) :: div
+    real(WP), dimension(dm%dpcc%xsz(1), dm%dpcc%xsz(2), dm%dpcc%xsz(3)) :: apcc
+    real(WP), dimension(4, dm%dpcc%xsz(2), dm%dpcc%xsz(3)) :: a4cc
+    integer :: npx, j, k
+    ! condition + default x-pencil
+    if(.not. dm%is_conv_outlet(1)) return
+    !
+    div = ZERO
+    call Get_divergence_flow(fl, div, dm)
+    !
+    npx = dm%dpcc%xen(1)
+    if (dm%is_thermo) then
+      div = fl%drhodt + div
+      apcc = fl%gx
+    else
+      apcc = fl%qx
+    end if
+    ! (rho*u)^real = (rho*u)^previsional - mass_error * dx ( second order only for B.C.)
+    
+    do k = 1, dm%dpcc%xsz(3)
+      do j = 1, dm%dpcc%xsz(2)
+        apcc(npx, j, k) = apcc(npx, j, k) - dm%tAlpha(isub) * div(npx-1, j, k) * dm%h(1)
+        a4cc(2, j, k) = apcc(npx, j, k)
+        a4cc(4, j, k) = TWO * apcc(npx, j, k) - apcc(npx-1, j, k)
+      end do 
+    end do
+    ! back
+    if (dm%is_thermo) then
+      fl%gx(npx, :, :)=apcc(npx, :, :)
+      dm%fbcx_gx(2, :, :) = a4cc(2, :, :)
+      dm%fbcx_gx(4, :, :) = a4cc(4, :, :)
+    else
+      fl%qx(npx, :, :)=apcc(npx, :, :)
+      dm%fbcx_qx(2, :, :) = a4cc(2, :, :)
+      dm%fbcx_qx(4, :, :) = a4cc(4, :, :)
+    end if
+
+    call Check_element_mass_conservation(fl, dm, opt_isub=isub) 
+
+    return
+  end subroutine
+!==========================================================================================================
+  subroutine compute_fbcz_convective_outlet_flow(fl, dm, isub)
     use bc_dirichlet_mod
     use convert_primary_conservative_mod
     use transpose_extended_mod
@@ -422,16 +478,30 @@ module bc_convective_outlet_mod
       accp_zpencil(:, :, 1) = dm%fbcz_qz(:, :, 2)
       call transpose_from_z_pencil(accp_zpencil, fl%qz, dm%dccp, IPENCIL(1))
     else
-      dm%fbcx_gx = a4cc
-      dm%fbcx_gy = a4pc
-      dm%fbcx_gz = a4cp
+      dm%fbcz_gx = apc4
+      dm%fbcz_gy = acp4
+      dm%fbcz_gz = acc4
       accp_zpencil(:, :, dm%dccp%zsz(3)) = dm%fbcz_gz(:, :, 2)
       call transpose_from_z_pencil(accp_zpencil, fl%gz, dm%dccp, IPENCIL(1))
     end if
     return
   end subroutine
 !==========================================================================================================
-  subroutine update_convective_outlet_flow(fl, dm, isub)
+  subroutine correct_fbcz_convective_outlet_flow(fl, dm, isub)
+    use bc_dirichlet_mod
+    use convert_primary_conservative_mod
+    implicit none
+    ! arguments
+    type(t_flow),   intent(inout) :: fl
+    type(t_domain), intent(inout) :: dm
+    integer,        intent(in)    :: isub
+
+    ! To add ...
+
+    return
+  end subroutine
+!==========================================================================================================
+  subroutine compute_convective_outlet_flow(fl, dm, isub)
     use convert_primary_conservative_mod
     use bc_dirichlet_mod
     implicit none
@@ -443,8 +513,8 @@ module bc_convective_outlet_mod
     if(.not. dm%is_conv_outlet(1) .and. &
       .not. dm%is_conv_outlet(3)) return
     !
-    if(dm%is_conv_outlet(1)) call update_fbcx_convective_outlet_flow(fl, dm, isub)
-    if(dm%is_conv_outlet(3)) call update_fbcz_convective_outlet_flow(fl, dm, isub)
+    if(dm%is_conv_outlet(1)) call compute_fbcx_convective_outlet_flow(fl, dm, isub)
+    if(dm%is_conv_outlet(3)) call compute_fbcz_convective_outlet_flow(fl, dm, isub)
     !
     call enforce_domain_mass_balance_dyn_fbc(fl%drhodt, dm)
     !
@@ -454,6 +524,25 @@ module bc_convective_outlet_mod
       call enforce_velo_from_fbc(dm, fl%gx, fl%gy, fl%gz, dm%fbcx_gx, dm%fbcy_gy, dm%fbcz_gz)
       call convert_primary_conservative(dm, fl%dDens, IG2Q, IBND)
     end if
+    return
+  end subroutine
+
+  !==========================================================================================================
+  subroutine correct_convective_outlet_flow(fl, dm, isub)
+    use convert_primary_conservative_mod
+    use bc_dirichlet_mod
+    implicit none
+    ! arguments
+    type(t_flow),   intent(inout) :: fl
+    type(t_domain), intent(inout) :: dm
+    integer,        intent(in)    :: isub
+    !
+    if(.not. dm%is_conv_outlet(1) .and. &
+      .not. dm%is_conv_outlet(3)) return
+    
+    if(dm%is_conv_outlet(1)) call correct_fbcx_convective_outlet_flow(fl, dm, isub)
+    if(dm%is_conv_outlet(3)) call correct_fbcz_convective_outlet_flow(fl, dm, isub)
+
     return
   end subroutine
 !==========================================================================================================
@@ -482,6 +571,7 @@ module bc_convective_outlet_mod
     call calculate_fbcx_convective_outlet(a4cc_xpencil, uxdx, tm%fbcx_rhoh_rhs0, a0cc_xpencil, dm, isub)
     !call enforce_domain_energy_balance_dyn_fbc(fl, dm) ! todo-check necessary? 
     ! update other properties 
+    dm%fbcx_ftp(:, :, :)%rhoh = a4cc_xpencil
     do j = 1, size(dm%fbcx_ftp, 2)
       do k = 1, size(dm%fbcx_ftp, 3)
         call ftp_refresh_thermal_properties_from_DH(dm%fbcx_ftp(2, j, k))
@@ -521,6 +611,7 @@ module bc_convective_outlet_mod
     call calculate_fbcz_convective_outlet(acc4_zpencil, uzdz, tm%fbcz_rhoh_rhs0, acc0_zpencil, dm, isub)
     !!call enforce_domain_energy_balance_dyn_fbc(fl, dm) ! todo-check necessary? 
     ! update other properties
+    dm%fbcz_ftp(:, :, :)%rhoh = acc4_zpencil
     do j = 1, size(dm%fbcz_ftp, 2)
       do i = 1, size(dm%fbcz_ftp, 1)
         call ftp_refresh_thermal_properties_from_DH(dm%fbcz_ftp(i, j, 2))
@@ -532,7 +623,7 @@ module bc_convective_outlet_mod
   end subroutine
 
   !==========================================================================================================
-  subroutine update_convective_outlet_thermo(tm, dm, isub)
+  subroutine compute_convective_outlet_thermo(tm, dm, isub)
     use udf_type_mod
     implicit none
     ! arguments

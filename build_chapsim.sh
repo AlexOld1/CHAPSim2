@@ -377,13 +377,12 @@ else
     echo "Running in NON-INTERACTIVE mode (using all defaults)"
 fi
 
-echo ""
-echo "========================================================================="
-echo ""
-
 # Step 0: Git Repository Setup - Check if repository exists first
 # =============================================================================
-echo "Step 0: Checking 2decomp-fft library..."
+echo ""
+echo "========================================================================="
+echo "  Step 0: Checking 2decomp-fft library..."
+echo "========================================================================="
 echo ""
 
 # Ensure necessary directories exist
@@ -490,7 +489,7 @@ fi
 if [[ "$LIB_REBUILD" =~ ^(yes|y)$ ]]; then
     echo ""
     echo "========================================================================="
-    echo "Step 1: Building / rebuilding 2decomp-fft library..."
+    echo "  Step 1: Building / rebuilding 2decomp-fft library..."
     echo "========================================================================="
     echo ""
     
@@ -537,7 +536,7 @@ echo ""
 # Step 2: Prompt for Build Options
 # =============================================================================
 echo "========================================================================="
-echo "Step 2: CHAPSim2 Build Configuration"
+echo "  Step 2: CHAPSim2 Build Configuration"
 echo "========================================================================="
 echo ""
 
@@ -555,8 +554,8 @@ fi
 
 # Prompt for build mode
 echo ""
-echo "CHAPSim build mode: a=default, b=gnu-o3, c=gnu-g, d=gnu-debug, e=intel, f=cray"
-BUILD_MODE=$(get_choice_input "Select CHAPSim build mode" "a,b,c,d,e,f" "a")
+echo "CHAPSim build mode: a=default, b=gnu-o3, c=gnu-g, d=gnu-debug, e=intel, f=cray, g=nvhpc-cpu"
+BUILD_MODE=$(get_choice_input "Select CHAPSim build mode" "a,b,c,d,e,f,g" "a")
 
 # Determine make target based on selection
 case "$BUILD_MODE" in
@@ -566,6 +565,7 @@ case "$BUILD_MODE" in
     d) MAKE_TARGET="make cfg=gnu-debug" ;;
     e) MAKE_TARGET="make cfg=intel" ;;
     f) MAKE_TARGET="make cfg=cray" ;;
+    g) MAKE_TARGET="make cfg=nvhpc-cpu" ;;
     *)
         echo "Error: Unexpected build mode '$BUILD_MODE'. Using default."
         MAKE_TARGET="make all"
@@ -581,10 +581,9 @@ fi
 # =============================================================================
 echo ""
 echo "========================================================================="
-echo "Step 3: Compiling CHAPSim2"
-echo "========================================================================="
-echo "Executing: $MAKE_TARGET"
-echo "Directory: $PATH_BUILD"
+echo "  Step 3: Compiling CHAPSim2"
+echo "    Executing: $MAKE_TARGET"
+echo "    Directory: $PATH_BUILD"
 echo "========================================================================="
 echo ""
 
@@ -592,12 +591,12 @@ cd "$PATH_BUILD" || { echo "Error: Cannot access $PATH_BUILD"; exit 1; }
 eval "$MAKE_TARGET" || { echo "Error: Build failed in $PATH_BUILD."; exit 1; }
 
 # Completion Message
-# =============================================================================
-echo ""
-echo "========================================================================="
-echo "✅ CHAPSim2 successfully compiled!"
-echo "========================================================================="
-echo ""
-echo "Build configuration: $MAKE_TARGET"
-echo "Binary location: $PATH_BIN"
-echo ""
+# # =============================================================================
+# echo ""
+# echo "========================================================================="
+# echo "✅ CHAPSim2 successfully compiled!"
+# echo "========================================================================="
+# echo ""
+# echo "Build configuration: $MAKE_TARGET"
+# echo "Binary location: $PATH_BIN"
+# echo ""

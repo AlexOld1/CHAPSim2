@@ -10,8 +10,9 @@ export RUN_MODE=smoke
 SMOKE_CASES=(
   tgv_iso
   channel_iso_inout
-  channel_scp_periodic
-  pipe_scp_inout
+  channel_scp_inout_Tw
+  annular_scp_inout_Tw
+  pipe_scp_inout_Tw
 )
 
 TOTAL=0

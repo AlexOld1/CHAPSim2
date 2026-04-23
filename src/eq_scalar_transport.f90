@@ -204,7 +204,7 @@ contains
 ! diff-x-e, d ( k_pcc * d (T) / dx ) dx
 !----------------------------------------------------------------------------------------------------------
     !------bulk------
-    call get_fbcx_iTh(dm%ibcx_Tm, dm, fbcx_4cc)
+    call get_fbcx_iTh(dm%ibcx_Tm, dm, tm, fbcx_4cc)
     call Get_x_1der_C2P_3D(tm%tTemp, apcc_xpencil, dm, dm%iAccuracy, dm%ibcx_Tm, fbcx_4cc )
     apcc_xpencil = apcc_xpencil * kCond_pcc_xpencil
     !------B.C.------
@@ -223,7 +223,7 @@ contains
 ! diff-y-e, d ( r * k_cpc * d (T) / dy ) dy * 1/r
 !----------------------------------------------------------------------------------------------------------
     !------bulk------
-    call get_fbcy_iTh(dm%ibcy_Tm, dm, fbcy_c4c)
+    call get_fbcy_iTh(dm%ibcy_Tm, dm, fbcy_c4c, tm, opt_k=kCond_cpc_ypencil)
     call Get_y_1der_C2P_3D(tTemp_ccc_ypencil, acpc_ypencil, dm, dm%iAccuracy, dm%ibcy_Tm, fbcy_c4c)
     acpc_ypencil = acpc_ypencil * kCond_cpc_ypencil
 #ifdef DEBUG_STEPS
@@ -251,7 +251,7 @@ contains
 ! diff-z-e, d (1/r* k_ccp * d (T) / dz ) / dz * 1/r
 !----------------------------------------------------------------------------------------------------------
     !------bulk------
-    call get_fbcz_iTh(dm%ibcz_Tm, dm, fbcz_cc4)
+    call get_fbcz_iTh(dm%ibcz_Tm, dm, tm, fbcz_cc4)
     call Get_z_1der_C2P_3D(tTemp_ccc_zpencil, accp_zpencil, dm, dm%iAccuracy, dm%ibcz_Tm, fbcz_cc4 )
     accp_zpencil = accp_zpencil * kCond_ccp_zpencil
     if(dm%icoordinate == ICYLINDRICAL) &
@@ -324,10 +324,19 @@ contains
     ! compute b.c. info from convective b.c. if specified.
     if (dm%is_conv_outlet(1)) call update_fbcx_convective_outlet_thermo(ux, tm, dm, isub)
     if (dm%is_conv_outlet(3)) call update_fbcz_convective_outlet_thermo(uz, tm, dm, isub)
+    !
+    if(tm%is_rhoh_compensated) then
+      call Get_volumetric_average_3d(dm, dm%dpcc, tm%rhoh, rhoh(1), SPACE_AVERAGE)
+    end if
     ! calculate rhs of energy equation
     call Compute_energy_rhs(gx, gy, gz, tm, dm, isub)
     !  update rho * h
     tm%rhoh = tm%rhoh + tm%ene_rhs
+    !
+    if(tm%is_rhoh_compensated) then
+      call Get_volumetric_average_3d(dm, dm%dpcc, tm%rhoh, rhoh(2), SPACE_AVERAGE)
+      tm%rhoh = tm%rhoh - (rhoh(2) - rhoh(1))
+    end if
     !  update other properties from rho * h for domain + b.c.
     call Update_thermal_properties(fl%dDens, fl%mVisc, tm, dm)
     if (dm%icase == ICASE_PIPE) call update_fbcy_cc_thermo_halo(tm, dm)

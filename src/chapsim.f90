@@ -37,7 +37,7 @@ subroutine initialise_chapsim
   use poisson_interface_mod
   use solver_tools_mod
   use thermo_info_mod
-  use io_visualisation_mod
+  use visualisation_field_mod
   use eq_momentum_mod
   use wrt_debug_field_mod
   use mhd_mod
@@ -202,7 +202,7 @@ subroutine Solve_eqs_iteration
   use input_general_mod
   use mpi_mod
   use wtformat_mod
-  use io_visualisation_mod
+  use visualisation_field_mod
   use io_monitor_mod
   use io_tools_mod
   use io_restart_mod
@@ -219,7 +219,9 @@ subroutine Solve_eqs_iteration
   integer :: iter, isub
   integer :: iteration
   integer :: niter
-
+  real(WP) :: maxmin_ep(2), maxmin_temp(2), &
+              maxmin_qx(2), maxmin_qy(2), maxmin_qz(2), &
+              maxmin_pr(2), maxmin_ph(2)
   
   !==========================================================================================================
   ! flow advancing/marching iteration/time control
@@ -233,7 +235,7 @@ subroutine Solve_eqs_iteration
        if (thermo(i)%iteration      < iteration) iteration = thermo(i)%iteration
        if (thermo(i)%nIterThermoEnd > niter)     niter     = thermo(i)%nIterThermoEnd
      end if
-     call Check_cfl_diffusion (flow(i), domain(i))
+     !call Check_cfl_diffusion (flow(i), opt_tm=thermo(i), domain(i))
   end do
 
   allocate(is_flow  (nxdomain)) 
@@ -270,7 +272,7 @@ subroutine Solve_eqs_iteration
         if ( (iter >= thermo(i)%nIterThermoStart) .and. (iter <= thermo(i)%nIterThermoEnd)) then
           is_thermo(i) = .true.
           if (nrank == 0 .and. .not. is_IO_off) &
-          write(*, *) " thermal field physical time (undim) = ", thermo(i)%time
+          write(*, wrtfmt3e) " thermal undim time, dt & phy time(s): ", thermo(i)%time, domain(i)%dt, thermo(i)%phy_time
           thermo(i)%time = thermo(i)%time  + domain(i)%dt
           thermo(i)%iteration = thermo(i)%iteration + 1
         end if
@@ -280,16 +282,24 @@ subroutine Solve_eqs_iteration
       !----------------------------------------------------------------------------------------------------------
       if ( (iter >= flow(i)%nIterFlowStart) .and. (iter <=flow(i)%nIterFlowEnd)) then
         is_flow(i) = .true.
-        if (nrank == 0 .and. .not. is_IO_off) &
-        write(*, *) " flow    field physical time (undim) = ", flow(i)%time
+        if (nrank == 0 .and. .not. is_IO_off) then
+          write(*, wrtfmt3e) " flow undim time & dt:", flow(i)%time, domain(i)%dt
+          call Print_debug_mid_msg('Numerical Stability Info')
+        end if
         flow(i)%time = flow(i)%time + domain(i)%dt
         flow(i)%iteration = flow(i)%iteration + 1
-        if (.not. is_IO_off) then
-          call Check_cfl_convection(flow(i)%qx, flow(i)%qy, flow(i)%qz, domain(i))
-          call Check_cfl_diffusion (flow(i), domain(i))
+      end if
+      !----------------------------------------------------------------------------------------------------------
+      !      check numerical stability
+      !----------------------------------------------------------------------------------------------------------
+      if (.not. is_IO_off) then
+        call Check_cfl_convection(flow(i)%qx, flow(i)%qy, flow(i)%qz, domain(i))
+        if(domain(i)%is_thermo) then
+          call Check_cfl_diffusion (fl=flow(i), dm=domain(i), opt_tm=thermo(i))
+        else
+          call Check_cfl_diffusion (fl=flow(i), dm=domain(i))
         end if
       end if
-
       !----------------------------------------------------------------------------------------------------------
       !  append and write out outlet data every real-iteration (not RK sub)
       !----------------------------------------------------------------------------------------------------------
@@ -331,26 +341,6 @@ subroutine Solve_eqs_iteration
     if( .not. is_IO_off ) then
     do i = 1, nxdomain
       !----------------------------------------------------------------------------------------------------------
-      !  validation for each time step
-      !----------------------------------------------------------------------------------------------------------
-      !if(nrank == 0) call Print_debug_mid_msg("For domain id = "//trim(int2str(i)))
-      if(is_flow(i)) then
-        call Check_element_mass_conservation(flow(i), domain(i), iter)
-        if(domain(1)%is_mhd) then
-          call check_current_conservation(mhd(i), domain(i))
-        end if
-        if(is_thermo(i)) then
-          call Find_max_min_3d(thermo(i)%tTemp, opt_name="T :")
-          !call Find_max_min_3d(thermo(i)%rhoh,  opt_name="rhoh :")
-        end if
-        call Find_max_min_3d(flow(i)%qx, opt_name="qx :")
-        call Find_max_min_3d(flow(i)%qy, opt_name="qy :")
-        call Find_max_min_3d(flow(i)%qz, opt_name="qz :")
-        call Find_max_min_3d(flow(i)%pres, opt_name="pr :")
-        call Find_max_min_3d(flow(i)%pcor, opt_name="ph :")
-        
-      end if
-      !----------------------------------------------------------------------------------------------------------
       !  update statistics
       !----------------------------------------------------------------------------------------------------------
       if (iter > domain(i)%stat_istart .and. is_flow(i)) then
@@ -389,6 +379,27 @@ subroutine Solve_eqs_iteration
       if(domain(i)%is_thermo .and. is_thermo(i)) then
         call write_monitor_bulk(flow(i), domain(i), thermo(i))
         call write_monitor_probe(flow(i), domain(i), thermo(i))
+      end if
+      !----------------------------------------------------------------------------------------------------------
+      !  validation for each time step
+      !----------------------------------------------------------------------------------------------------------
+      !if(nrank == 0) call Print_debug_mid_msg("For domain id = "//trim(int2str(i)))
+      if(is_flow(i)) then
+        if(nrank==0) call Print_debug_mid_msg("Field Info") 
+        call Check_element_mass_conservation(flow(i), domain(i), iter)
+        if(domain(1)%is_mhd) then
+          call check_current_conservation(mhd(i), domain(i))
+          call Find_max_min_3d(mhd(i)%ep, opt_work=maxmin_ep, opt_name="ep =")
+        end if
+        if(is_thermo(i)) then
+          call Find_max_min_3d(thermo(i)%tTemp, opt_work=maxmin_temp, opt_name="T =")
+          !call Find_max_min_3d(thermo(i)%rhoh,  opt_name="rhoh :")
+        end if
+        call Find_max_min_3d(flow(i)%qx,   opt_work=maxmin_qx, opt_name="qx =")
+        call Find_max_min_3d(flow(i)%qy,   opt_work=maxmin_qy, opt_name="qy =")
+        call Find_max_min_3d(flow(i)%qz,   opt_work=maxmin_qz, opt_name="qz =")
+        call Find_max_min_3d(flow(i)%pres, opt_work=maxmin_pr, opt_name="pr =")
+        call Find_max_min_3d(flow(i)%pcor, opt_work=maxmin_ph, opt_name="ph =")
       end if
       !----------------------------------------------------------------------------------------------------------
       !  write out check point data for restart

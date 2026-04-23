@@ -16,8 +16,7 @@ module regression_test_mod
     ! thermal metrics
     real(wp) :: bulk_massflux(3)
     real(wp) :: bulk_enthalpy
-    real(wp) :: energy_balance
-    !real(wp) :: wall_heat_flux
+    real(wp) :: bulk_temperature
   end type t_metrics
   public :: t_metrics
   !
@@ -33,7 +32,7 @@ contains
     logical, intent(in) :: is_thermo
     !
     integer :: unit
-    logical :: exists
+    logical :: exists, is_last
     !----------------------------------------------------------
     ! Only rank 0 writes
     !----------------------------------------------------------
@@ -49,25 +48,27 @@ contains
     call write_json_real(unit, 'max. mass conservation (interior)', metrics%mass_residual(1),    last=.false.)
     call write_json_real(unit, 'max. mass conservation (inlet)',    metrics%mass_residual(2),    last=.false.)
     call write_json_real(unit, 'max. mass conservation (outlet)',   metrics%mass_residual(3),    last=.false.)
+    call write_json_real(unit, 'global pressure drop',  metrics%pressure_drop,    last=.false.)
+    call write_json_real(unit, 'mean dpdx',             metrics%mean_dpdx,        last=.false.)
     ! momentum
     call write_json_real(unit, 'total kinetic energy',  metrics%kinetic_energy,   last=.false.)
     call write_json_real(unit, 'bulk velocity ux',      metrics%bulk_velocity(1), last=.false.)
     !call write_json_real(unit, 'bulk velocity uy',      metrics%bulk_velocity(2), last=.false.)
-    call write_json_real(unit, 'bulk velocity uz',      metrics%bulk_velocity(3), last=.false.)
-    !call write_json_real(unit, 'wall shear integral',  metrics%wall_shear_integral, last=.false.)
-    call write_json_real(unit, 'mean dpdx',             metrics%mean_dpdx,        last=.false.)
     if(is_thermo) then
-    call write_json_real(unit, 'global energy balance', metrics%energy_balance,   last=.false.)
+      is_last = .false.
     else
-    call write_json_real(unit, 'global pressure drop',  metrics%pressure_drop,    last=.true.)
+      is_last = .true.
     end if
+    call write_json_real(unit, 'bulk velocity uz',      metrics%bulk_velocity(3), last=is_last)
+    !call write_json_real(unit, 'wall shear integral',  metrics%wall_shear_integral, last=.false.)
+    
     if(is_thermo) then
       ! mass flux
       call write_json_real(unit, 'bulk massflux gx',      metrics%bulk_massflux(1), last=.false.)
       !call write_json_real(unit, 'bulk massflux gy',      metrics%bulk_massflux(2), last=.false.)
       call write_json_real(unit, 'bulk massflux gz',      metrics%bulk_massflux(3), last=.false.)
       call write_json_real(unit, 'bulk enthalpy',         metrics%bulk_enthalpy,    last=.false.)
-      call write_json_real(unit, 'global energy balance', metrics%energy_balance,   last=.true.)
+      call write_json_real(unit, 'bulk temperature',      metrics%bulk_temperature, last=.true.)
      !call write_json_real(unit, 'wall_heat_flux',                    metrics%wall_heat_flux,      last=.false.)
     end if  
     ! other
@@ -115,7 +116,6 @@ contains
     use typeconvert_mod
     use wtformat_mod
     use udf_type_mod
-    use io_files_mod
     use io_tools_mod
     use parameters_constant_mod
     implicit none 
@@ -144,24 +144,24 @@ contains
         open(newunit = myunit, file = trim(flname), status="new", action="write")
         write(myunit, *) "# domain-id : ", dm%idom, "pt-id : ", i
         write(myunit, *) "# columns description:"
-        write(myunit, *) "# column 1 : time"
-        write(myunit, *) "# column 2 : global mass balance"
-        write(myunit, *) "# column 3 : max. mass conservation (interior)"
-        write(myunit, *) "# column 4 : max. mass conservation (inlet)"  
-        write(myunit, *) "# column 5 : max. mass conservation (outlet)"
-        write(myunit, *) "# column 6 : total kinetic energy"
-        write(myunit, *) "# column 7 : bulk velocity qx"
-        write(myunit, *) "# column 8 : bulk velocity qy"
-        write(myunit, *) "# column 9 : bulk velocity qz"
+        write(myunit, *) "# column  1 : time"
+        write(myunit, *) "# column  2 : global mass balance"
+        write(myunit, *) "# column  3 : max. mass conservation (interior)"
+        write(myunit, *) "# column  4 : max. mass conservation (inlet)"  
+        write(myunit, *) "# column  5 : max. mass conservation (outlet)"
+        write(myunit, *) "# column  6 : total kinetic energy"
         !write(myunit, *) "# column 10 : wall shear integral"
-        write(myunit, *) "# column 10 : mean dpdx"
-        write(myunit, *) "# column 11 : global pressure drop"
+        write(myunit, *) "# column  7 : mean dpdx"
+        write(myunit, *) "# column  8 : global pressure drop"
+        write(myunit, *) "# column  9 : bulk velocity qx"
+        write(myunit, *) "# column 10 : bulk velocity qy"
+        write(myunit, *) "# column 11 : bulk velocity qz"
         if(dm%is_thermo) then
           write(myunit, *) "# column 12 : bulk mass flux gx"
           write(myunit, *) "# column 13 : bulk mass flux gy"
           write(myunit, *) "# column 14 : bulk mass flux gz"
           write(myunit, *) "# column 15 : bulk enthalpy"
-          write(myunit, *) "# column 16 : global enthalpy balance"
+          write(myunit, *) "# column 16 : bulk temperature"
           !write(myunit, *) "# column 17 : wall heat flux"
         end if
         close(myunit)
@@ -288,6 +288,7 @@ contains
     use regression_test_mod
     use bc_dirichlet_mod
     use solver_tools_mod
+    use thermo_info_mod
     implicit none 
 
     type(t_domain),  intent(in) :: dm
@@ -300,7 +301,7 @@ contains
     character(200) :: iotxt
     integer :: ioerr, myunit
 
-    real(WP) :: bulk_MKE, bulk_q(3), bulk_g(3), bulk_T, bulk_m, bulk_h, bulk_rhoh, mean_dpdx, pressure_drop, &
+    real(WP) :: bulk_MKE, bulk_q(3), bulk_g(3), bulk_m, bulk_h, mean_dpdx, pressure_drop, &
                 mass_balance(8)
     real(WP) :: bulk_fbcx(2), bulk_fbcy(2), bulk_fbcz(2)
     real(WP), dimension( dm%dpcc%xsz(1), dm%dpcc%xsz(2), dm%dpcc%xsz(3) ) :: apcc_xpencil
@@ -320,6 +321,7 @@ contains
     real(WP), dimension(dm%dccc%zsz(1), dm%dccc%zsz(2), 4) :: fbcz
     real(WP), dimension(dm%dcpc%ysz(1), 4, dm%dcpc%ysz(3)) :: fbcy_c4c
     real(WP) :: dMKEdt
+    type(t_fluidThermoProperty) :: ftp_bulk
 
 !----------------------------------------------------------------------------------------------------------
 !   kinetic energy = 1/2*rho * (uu+vv+ww)
@@ -377,15 +379,12 @@ contains
       bulk_g = ZERO
       call Get_volumetric_average_3d(dm, dm%dpcc, fl%gx, bulk_g(1), SPACE_AVERAGE, 'rho*ux')
       call Get_volumetric_average_3d(dm, dm%dccp, fl%gz, bulk_g(3), SPACE_AVERAGE, 'rho*uz')
-      !
-      ! bulk temperature
-      call Get_volumetric_average_3d(dm, dm%dccc, tm%tTemp, bulk_T,  SPACE_AVERAGE, 'T')
-      !
-      ! bulk enthalpy
-      call Get_volumetric_average_3d(dm, dm%dccc, tm%hEnth, bulk_h,  SPACE_AVERAGE, 'h')
-      !
-      ! enthalpy balance
-      call Get_volumetric_average_3d(dm, dm%dccc, tm%rhoh, bulk_rhoh,  SPACE_AVERAGE, 'rhoh')
+      ! Mass-flux-weighted enthalpy = energy 
+      call Get_x_1der_C2C_3D(fl%gx, accc1, dm, dm%iAccuracy, dm%ibcx_qx(:), dm%fbcx_qx)
+      accc2 = accc1 * tm%hEnth
+      call Get_volumetric_average_3d(dm, dm%dccc, accc2, bulk_h,  SPACE_AVERAGE, 'h')
+      ftp_bulk%h = bulk_h / bulk_g(1)
+      call ftp_refresh_thermal_properties_from_H(ftp_bulk)
     end if
 !----------------------------------------------------------------------------------------------------------
 !   save regression test metrics at the end of flow simulation
@@ -399,9 +398,9 @@ contains
       metrics%pressure_drop    = pressure_drop
       metrics%mean_dpdx        = mean_dpdx
       if(dm%is_thermo .and. present(tm)) then
-        metrics%energy_balance   = bulk_rhoh
         metrics%bulk_massflux(:) = bulk_g(:)
-        metrics%bulk_enthalpy    = bulk_h
+        metrics%bulk_enthalpy    = ftp_bulk%h
+        metrics%bulk_temperature = ftp_bulk%t
       end if
       !
       call write_metrics_json(trim('regression_test_metrics.json'), metrics, dm%is_thermo)
@@ -417,7 +416,7 @@ contains
       if(ioerr /= 0) then
         call Print_error_msg('Problem openning conservation file')
       end if 
-      write(myunit, '(7ES16.8)') fl%time, fl%mcon(1:4), fl%tt_mass_change, dMKEdt
+      write(myunit, '(6ES16.8)') fl%time, fl%mcon(1:3), fl%tt_mass_change, dMKEdt
       close(myunit)
       ! write out history of bulk variables
       call generate_pathfile_name(flname, dm%idom, trim(fl_bulk), dir_moni, 'log')
@@ -428,11 +427,11 @@ contains
       end if 
       if(dm%is_thermo .and. present(tm)) then
         write(myunit, '(1E13.5, 15ES16.8)') fl%time, fl%tt_mass_change, fl%mcon(1:3), &
-          bulk_MKE, bulk_q(1:3), mean_dpdx, pressure_drop, &
-          bulk_rhoh, bulk_g(1:3), bulk_h
+          bulk_MKE, mean_dpdx, pressure_drop, bulk_q(1:3), &
+          bulk_g(1:3), ftp_bulk%h, ftp_bulk%t
       else
         write(myunit, '(1E13.5, 10ES16.8)') fl%time, fl%tt_mass_change, fl%mcon(1:3), &
-          bulk_MKE, bulk_q(1:3), mean_dpdx, pressure_drop
+          bulk_MKE, mean_dpdx, pressure_drop, bulk_q(1:3)
       end if
       close(myunit)
     end if     

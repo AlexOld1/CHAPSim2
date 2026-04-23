@@ -280,7 +280,7 @@ contains
     use mpi_mod
     use solver_tools_mod
     use wtformat_mod
-    use io_visualisation_mod
+    !use visualisation_field_mod
     use find_max_min_ave_mod
     use typeconvert_mod
     implicit none
@@ -292,7 +292,7 @@ contains
 
     character(32) :: str
     integer :: n, nlayer, isub
-    real(WP) :: mm(2), mm0
+    real(WP) :: mm(2)
     real(WP), dimension(dm%dccc%xsz(1), dm%dccc%xsz(2), dm%dccc%xsz(3)) :: div, drhodt
     !----------------------------------------------------------------
     ! safe-proof
@@ -323,15 +323,15 @@ contains
     call Get_divergence_flow(fl, div, dm)
     div = div + drhodt
     !
-#ifdef DEBUG_STEPS
-    if(MOD(fl%iteration, dm%visu_nfre) == 0) &
-    call write_visu_any3darray(div, 'divU', 'debug'//trim(str), dm%dccc, dm, fl%iteration)
-#endif
+!#ifdef DEBUG_STEPS
+    !if(MOD(fl%iteration, dm%visu_nfre) == 0) &
+    !call write_visu_any3darray(div, 'masserror', 'debug', dm%dccc, dm, fl%iteration)
+!#endif
     !----------------------------------------------------------------
     ! Find Max. mass conservation residual
     !----------------------------------------------------------------
     n = dm%dccc%xsz(1)
-    mm0 = fl%mcon(1)
+    !mm0 = fl%mcon(1)
     fl%mcon = ZERO
     !
     if(dm%is_periodic(1)) then
@@ -348,12 +348,15 @@ contains
     call Find_max_min_3d(div(nlayer+1:n-nlayer, :, :), opt_calc='MAXI', &
         opt_work=mm, opt_name="Mass Consv. (bulk    ) =")
     fl%mcon(1) = mm(2)
-    fl%mcon(4) = safe_divide(fl%mcon(1)-mm0, mm0)
-    if(nrank==0) write(*, '(A,1F9.2,A)') ' ', fl%mcon(4)*100.0_WP, '%'
+    !fl%mcon(4) = safe_divide(fl%mcon(1)-mm0, dabs(mm0))
+    !if(nrank==0) write(*, '(A,1F9.2,A)') ' ', fl%mcon(4)*100.0_WP, '%'
     ! terminate code once too large
     if(nrank == 0) then
-      if(fl%mcon(1) > 1.0_WP .and. fl%iteration > 10000 ) &
-      call Print_error_msg("Mass conservation is not strictly satisfied at the machine precision level.")
+      if(fl%mcon(1) > 2.0_WP .and. fl%iteration > 10000 ) &
+      call Print_error_msg("Mass conservation error exceeds tolerance. Terminate run and investigate.")
+    end if
+    if (nrank == 0) then
+      write (*, wrtfmt1el) 'global mass flux imbalance =', fl%tt_mass_change
     end if
     !----------------------------------------------------------------
     ! turn on numerical tricks based on mass conservation residual
@@ -361,28 +364,20 @@ contains
     if(fl%iteration >= 1) then
       if(dm%is_conv_outlet(1) .or. dm%is_conv_outlet(3)) then 
         if(.not. is_damping_drhodt) then
-          if(fl%mcon(1) > 1.0e-1_WP) then
+          if(fl%mcon(1) > 1.0_WP) then
             is_damping_drhodt = .true.
             if(nrank==0) call Print_warning_msg('drho/dt damping function is on.')
           end if
         end if
       else
         if(.not. is_global_mass_correction) then
-          if(fl%mcon(1) > 1.0e-5_WP) then
+          if(fl%tt_mass_change > 1.0e-2_WP) then
             is_global_mass_correction = .true. ! scaled convective b.c. has already met this.
-            if(nrank==0) call Print_warning_msg('Global mass balance is on for RHS of Pression Poisson Eq.')
+            if(nrank==0) call Print_warning_msg('is_global_mass_correction is True for RHS of Pression Poisson Eq.')
           end if
         end if
       end if
     end if
-    if(fl%mcon(4) > ONE) then 
-      if(nrank==0) call Print_warning_msg('Mass conservation residual increased by 100%!')
-    end if
-#ifdef DEBUG_STEPS
-    if(nrank == 0) then
-      write (*, *) "  Check Mass Conservation:", fl%iteration, isub, fl%mcon(1:4) 
-    end if
-#endif
     return
   end subroutine Check_element_mass_conservation 
 

@@ -149,9 +149,9 @@ contains
 
     select case(ist)
     case ( FFT_2DECOMP_3DFFT) 
-      str = '3-D FFT using 2DECOMP&FFT'
+      str = 'FFT using 2DECOMP&FFT'
     case ( FFT_FISHPACK_2DFFT)
-      str = '2-D FFT using Fishpack FFT'
+      str = 'FFT using Fishpack FFT'
     case default
       call Print_error_msg('The required FFT lib is not supported.')
     end select
@@ -198,6 +198,8 @@ contains
       str = 'Initialised from a poiseuille flow'
     case ( INIT_FUNCTION)
       str = 'Initialised from a given function'
+    case ( INIT_GVBCLN)
+      str = 'Initialised from linear interpolation of given BCs'
     case default
       call Print_error_msg('The required initialisation method is not supported.')
     end select
@@ -526,7 +528,7 @@ contains
           end if
           if(domain(i)%ibcx_nominal(1, 1) == IBC_DATABASE) then
             domain(i)%ibcx_nominal(1, 2:3) = IBC_DATABASE
-            domain(i)%ibcx_nominal(1, 4:5) = IBC_NEUMANN
+            domain(i)%ibcx_nominal(1, 4) = IBC_NEUMANN
           end if
           !if(domain(i)%ibcx_nominal(2, 1) == IBC_CONVECTIVE) then
           !  domain(i)%ibcx_nominal(2, 2:3) = IBC_CONVECTIVE
@@ -562,6 +564,14 @@ contains
           if(domain(i)%ibcx_nominal(1, 1) /= IBC_PERIODIC .or. &
              domain(i)%ibcx_nominal(2, 1) /= IBC_PERIODIC) then 
             flow(i)%idriven = IDRVF_NO
+          end if
+
+          if(domain(i)%ibcx_nominal(1, 1) == IBC_PERIODIC .or. &
+             domain(i)%ibcx_nominal(2, 1) == IBC_PERIODIC) then 
+            if(flow(i)%idriven == IDRVF_NO) then
+              if(nrank==0) &
+              call Print_warning_msg("Check if a flow driven force is required for periodic flow.")
+            end if
           end if
         end do
 
@@ -659,6 +669,7 @@ contains
         domain(:)%iAccuracy = domain(1)%iAccuracy
         read(inputUnit, *, iostat = ioerr) varname, domain(1)%iviscous
         domain(:)%iviscous = domain(1)%iviscous
+        read(inputUnit, *, iostat = ioerr) varname, domain(1)%outlet_sponge_layer(1:2)
         ! some schemes are still testing, check >>>
         if(domain(1)%icoordinate == ICYLINDRICAL) then
           domain(1)%iAccuracy = IACCU_CD2
@@ -689,6 +700,10 @@ contains
             write (*, wrtfmt1i) 'time marching scheme :', domain(i)%iTimeScheme
             write (*, wrtfmt2s) 'current spatial accuracy scheme :', get_name_iacc(domain(i)%iAccuracy)
             write (*, wrtfmt1i) 'viscous term treatment  :', domain(i)%iviscous
+            if(domain(1)%outlet_sponge_layer(1) > MINP) then
+              write (*, wrtfmt2r) 'outlet sponge layer thickness :', domain(i)%outlet_sponge_layer(1)
+              write (*, wrtfmt2r) 'outlet sponge layer strength (Re):', domain(i)%outlet_sponge_layer(2)
+            end if
           end do
         end if
       !----------------------------------------------------------------------------------------------------------
@@ -707,19 +722,21 @@ contains
         do i = 1, nxdomain
           if(flow(i)%inittype /= INIT_RESTART) flow(i)%iterfrom = 0
           flow(i)%init_velo3d(1:3) = flow(1)%init_velo3d(1:3)
-          if(flow(i)%inittype == INIT_RESTART) flow(i)%reninit = flow(i)%ren
-          if(domain(i)%ibcx_nominal(1, 1) /= IBC_PERIODIC .or. &
-            domain(i)%ibcx_nominal(2, 1) /= IBC_PERIODIC) then 
-            flow(i)%reninit = flow(i)%ren
-          end if
+          !if(flow(i)%inittype == INIT_RESTART) flow(i)%reninit = flow(i)%ren
+          ! if(domain(i)%ibcx_nominal(1, 1) /= IBC_PERIODIC .or. &
+          !   domain(i)%ibcx_nominal(2, 1) /= IBC_PERIODIC) then 
+          !   flow(i)%reninit = flow(i)%ren
+          ! end if
         end do
 
         if( nrank == 0) then
           do i = 1, nxdomain
             !write (*, wrtfmt1i) '------For the domain-x------ ', i
             call print_note_msg("The Reynolds number is based on half channel hight or radius of a pipe.")
-            write (*, wrtfmt2s) 'flow initial type :', get_name_initial(flow(i)%inittype)
-            write (*, wrtfmt1i) 'iteration starting from :', flow(i)%iterfrom
+            write (*, wrtfmt2s) 'flow field initial type :', get_name_initial(flow(i)%inittype)
+            if(flow(i)%inittype == INIT_RESTART) then
+              write (*, wrtfmt1i) 'restarting from :', flow(i)%iterfrom
+            end if
             if(flow(i)%inittype == INIT_GVCONST) then
             write (*, wrtfmt3r) 'initial velocity u, v, w :', flow(i)%init_velo3d(1:3)
             end if
@@ -753,6 +770,13 @@ contains
         if(is_any_energyeq) thermo(1 : nxdomain)%iterfrom = itmp
         read(inputUnit, *, iostat = ioerr) varname, rtmpx(1: nxdomain)
         if(is_any_energyeq) thermo(1 : nxdomain)%init_T0 = rtmpx(1: nxdomain)
+        read(inputUnit, *, iostat = ioerr) varname, rtmp, diff
+        if(is_any_energyeq) thermo(1 : nxdomain)%thermo_buffer_layer(1) = rtmp
+        if(is_any_energyeq) thermo(1 : nxdomain)%thermo_buffer_layer(2) = diff
+        read(inputUnit, *, iostat = ioerr) varname, is_tmp, i, j
+        if(is_any_energyeq) thermo(1 : nxdomain)%is_use_qw_ramp = is_tmp
+        if(is_any_energyeq) thermo(1 : nxdomain)%istt_qw_ramp = i
+        if(is_any_energyeq) thermo(1 : nxdomain)%iend_qw_ramp = j
 
         if(is_any_energyeq .and. nrank == 0) then
           do i = 1, nxdomain
@@ -763,9 +787,20 @@ contains
             write (*, wrtfmt2s) 'fluid medium :', get_name_fluid(thermo(i)%ifluid)
             write (*, wrtfmt1r) 'reference length (m) :', thermo(i)%ref_l0
             write (*, wrtfmt1r) 'reference temperature (K) :', thermo(i)%ref_T0
-            write (*, wrtfmt1i) 'thermo field initial type :', thermo(i)%inittype
-            write (*, wrtfmt1i) 'iteration starting from :', thermo(i)%iterfrom
+            write (*, wrtfmt2s) 'thermo field initial type :', get_name_initial(thermo(i)%inittype)
+            if(thermo(i)%inittype == INIT_RESTART) then
+              write (*, wrtfmt1i) 'restarting from :', thermo(i)%iterfrom
+            end if
+            if(thermo(i)%inittype == INIT_GVCONST) then
             write (*, wrtfmt1r) 'initial temperature (K) :', thermo(i)%init_T0
+            end if
+            write (*, wrtfmt2r) 'inlet  thermal buffer length (lx/L0):', thermo(i)%thermo_buffer_layer(1)
+            write (*, wrtfmt2r) 'outlet thermal buffer length (lx/L0):', thermo(i)%thermo_buffer_layer(2)
+            write (*, wrtfmt1l) 'is a ramp b.c. heat flux qw enabled?',  thermo(i)%is_use_qw_ramp
+            if(thermo(i)%is_use_qw_ramp) then
+              write (*, wrtfmt1i) 'b.c. qw ramp starts from :', thermo(i)%istt_qw_ramp
+              write (*, wrtfmt1i) 'b.c. qw ramp ends at :', thermo(i)%iend_qw_ramp
+            end if 
           end do
         else if(nrank == 0) then
          call Print_note_msg ('Thermal field is not considered. ')
@@ -846,10 +881,25 @@ contains
         read(inputUnit, *, iostat = ioerr) varname, domain(1 : nxdomain)%visu_nfre
         read(inputUnit, *, iostat = ioerr) varname, domain(1)%visu_nskip(1:3)
         read(inputUnit, *, iostat = ioerr) varname, domain(1 : nxdomain)%stat_istart
+        read(inputUnit, *, iostat = ioerr) varname, domain(1)%stat_level
         read(inputUnit, *, iostat = ioerr) varname, domain(1)%stat_nskip(1:3)
         read(inputUnit, *, iostat = ioerr) varname, domain(1)%is_record_xoutlet, domain(1)%is_read_xinlet
         read(inputUnit, *, iostat = ioerr) varname, domain(1)%ndbfre, domain(1)%ndbstart, domain(1)%ndbend
+        read(inputUnit, *, iostat = ioerr) varname, domain(1)%io_mode
+
+        if(domain(1)%is_record_xoutlet .or. &
+          domain(1)%is_read_xinlet) then
+          if(domain(1)%ndbend < domain(1)%ndbstart) then
+            domain(1)%ndbend = domain(1)%ndbstart + domain(1)%ndbfre - 1
+          end if
+          if(domain(1)%ndbend > flow(1)%nIterFlowEnd) then
+            domain(1)%ndbend = flow(1)%nIterFlowEnd
+          end if
+          itmp = domain(1)%ndbstart - 1 + ((domain(1)%ndbend - domain(1)%ndbstart + 1) / domain(1)%ndbfre) * domain(1)%ndbfre
+          domain(1)%ndbend =min(domain(1)%ndbend, itmp)
+        end if
         
+        domain(1)%visu_nskip(1:3) = 1 ! This is a temporary solution to wait for features from 2decomp lib.
         do i = 1, nxdomain
           if(domain(1)%ndbfre/=0) &
           domain(:)%ndbend = (domain(1)%ndbend - domain(1)%ndbstart + 1)/domain(1)%ndbfre * domain(1)%ndbfre + domain(1)%ndbstart - 1
@@ -941,16 +991,49 @@ contains
     !----------------------------------------------------------------------------------------------------------
     ! cross session conditions
     !----------------------------------------------------------------------------------------------------------
+    do i = 1, nxdomain
+      if(domain(i)%ibcx_nominal(1, 1) /= IBC_PERIODIC .or. &
+         domain(i)%ibcx_nominal(2, 1) /= IBC_PERIODIC) then 
+        flow(i)%reninit = flow(i)%ren
+      end if
+    end do
+
+    if(is_any_energyeq) then
+      do i = 1, nxdomain
+        thermo(i)%is_rhoh_compensated = .false.
+        if(domain(i)%ibcy_nominal(1, 5) /= IBC_DIRICHLET .or. &
+           domain(i)%ibcy_nominal(2, 5) /= IBC_DIRICHLET) then
+           thermo(i)%inittype = INIT_GVCONST
+        end if
+        if(domain(i)%ibcx_nominal(1, 1) == IBC_PERIODIC .and. &
+           domain(i)%ibcx_nominal(2, 1) == IBC_PERIODIC) then 
+           if(domain(i)%ibcy_nominal(1, 5) == IBC_NEUMANN .or. &
+              domain(i)%ibcy_nominal(2, 5) == IBC_NEUMANN) then
+              thermo(i)%is_rhoh_compensated = .true.
+           end if
+        end if
+      end do
+    end if
+    
+    if(domain(1)%is_periodic(1)) then
+      domain(1)%outlet_sponge_layer(1:2) = ZERO
+    end if
+    if(is_any_energyeq) then
+      if(domain(1)%is_periodic(1)) &
+      thermo(1)%thermo_buffer_layer(:) = ZERO
+    end if
     if((.not. domain(1)%is_periodic(2)) .and. is_any_energyeq) then
-      !domain(:)%fft_skip_c2c(2) = .true.
+      ! check! if not skip, mass error is 1e-5.
+      domain(:)%fft_skip_c2c(2) = .true.
     end if
     if(domain(1)%icoordinate == ICYLINDRICAL) then
       domain(:)%fft_skip_c2c(2) = .true.
     end if
     if (.not. domain(1)%fft_skip_c2c(2)) domain(:)%mstret = MSTRET_3FMD
+    !
+    is_single_RK_projection = .false.
     if(is_any_energyeq) then
     !   if(domain(1)%ibcx_nominal(2,1)==IBC_CONVECTIVE) then
-         is_single_RK_projection = .false.
          if(is_single_RK_projection) &
          call Print_warning_msg('is_single_RK_projection on could introduce very high pressure.')
     !     !is_damping_drhodt = .true.

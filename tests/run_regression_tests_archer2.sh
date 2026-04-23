@@ -7,18 +7,21 @@ CASES=(
   #
   channel_iso_periodic
   channel_iso_inout
-  channel_scp_periodic
-  channel_scp_inout
+  channel_scp_periodic_Tw
+  channel_scp_inout_Tw
+  channel_scp_inout_qw
   #
   annular_iso_periodic
   annular_iso_inout
-  annular_scp_periodic
-  annular_scp_inout
+  annular_scp_periodic_Tw
+  annular_scp_inout_Tw
+  annular_scp_inout_qw
   #
   pipe_iso_periodic
   pipe_iso_inout
-  pipe_scp_periodic
-  pipe_scp_inout
+  pipe_scp_periodic_Tw
+  pipe_scp_inout_Tw
+  pipe_scp_inout_qw
 )
 
 TOTAL=0

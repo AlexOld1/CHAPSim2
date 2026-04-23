@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -9,22 +8,51 @@ set -euo pipefail
 #   - Check metrics only (no solver run)
 # =============================================================================
 
-CASES=(
+STANDARD_CASES=(
   tgv_iso
   tgv_scp
   channel_iso_periodic
   channel_iso_inout
-  channel_scp_periodic
-  channel_scp_inout
+  channel_scp_periodic_Tw
+  channel_scp_inout_Tw
+  channel_scp_inout_qw
   annular_iso_periodic
   annular_iso_inout
-  annular_scp_periodic
-  annular_scp_inout
+  annular_scp_periodic_Tw
+  annular_scp_inout_Tw
+  annular_scp_inout_qw
   pipe_iso_periodic
   pipe_iso_inout
-  pipe_scp_periodic
-  pipe_scp_inout
+  pipe_scp_periodic_Tw
+  pipe_scp_inout_Tw
+  pipe_scp_inout_qw
 )
+
+EXTENDED_CASES=(
+  tgv_iso
+  tgv_scp
+  channel_iso_periodic
+  channel_iso_inout
+  channel_scp_inout
+  channel_scp_periodic_Tw
+  channel_scp_periodic_qw
+  channel_scp_inout_Tw
+  channel_scp_inout_qw
+  annular_iso_periodic
+  annular_iso_inout
+  annular_scp_periodic_Tw
+  annular_scp_periodic_qw
+  annular_scp_inout_Tw
+  annular_scp_inout_qw
+  pipe_iso_periodic
+  pipe_iso_inout
+  pipe_scp_periodic_Tw
+  pipe_scp_periodic_qw
+  pipe_scp_inout_Tw
+  pipe_scp_inout_qw
+)
+
+CASES=()
 
 TOTAL=0
 PASSED=0
@@ -39,11 +67,13 @@ SCRIPT_ROOT="$(pwd)"
 MAX_WAIT=10
 DEFAULT_BUILD_CHOICE="n"
 DEFAULT_TEST_MODE="run"   # run | check
+DEFAULT_REGRESSION_SUITE="standard"  # standard | extended
 
 # =============================================================================
 # Step 0: Run cases or metrics-only?
 # =============================================================================
 TEST_MODE="$DEFAULT_TEST_MODE"
+REGRESSION_SUITE="$DEFAULT_REGRESSION_SUITE"
 
 if [[ "${CI:-false}" != "true" ]]; then
     read -t "$MAX_WAIT" -p \
@@ -57,9 +87,28 @@ if [[ "${CI:-false}" != "true" ]]; then
     else
         TEST_MODE="run"
     fi
+
+    read -t "$MAX_WAIT" -p \
+        "Run [s]tandard or [e]xtended regression? (default: s): " \
+        REGRESSION_SUITE_INPUT || true
+    REGRESSION_SUITE_INPUT="${REGRESSION_SUITE_INPUT:-$DEFAULT_REGRESSION_SUITE}"
+    REGRESSION_SUITE_INPUT="$(echo "$REGRESSION_SUITE_INPUT" | tr '[:upper:]' '[:lower:]')"
+
+    if [[ "$REGRESSION_SUITE_INPUT" == "extended" || "$REGRESSION_SUITE_INPUT" == "e" ]]; then
+        REGRESSION_SUITE="extended"
+    else
+        REGRESSION_SUITE="standard"
+    fi
+fi
+
+if [[ "$REGRESSION_SUITE" == "extended" ]]; then
+    CASES=("${EXTENDED_CASES[@]}")
+else
+    CASES=("${STANDARD_CASES[@]}")
 fi
 
 echo ">>> Test mode: $TEST_MODE"
+echo ">>> Regression suite: $REGRESSION_SUITE"
 echo "========================================"
 echo "Test root directory: $SCRIPT_ROOT"
 echo "Found ${#CASES[@]} test case(s)"

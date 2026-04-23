@@ -7,7 +7,8 @@ module solver_tools_mod
   !
   public  :: Update_Re
   public  :: Update_PrGr
-  public  :: Calculate_xz_mean_yprofile
+  public  :: Calculate_vis_sponge
+  !public  :: Calculate_xz_mean_yprofile
   public  :: Adjust_to_xzmean_zero
   !public  :: Get_volumetric_average_3d ! not used anymore
   public  :: get_fbcx_ftp_4pc
@@ -47,7 +48,7 @@ contains
 
     return
   end subroutine Update_Re
-
+!==========================================================================================================
   subroutine Update_PrGr(fl, tm)
     use parameters_constant_mod
     use thermo_info_mod
@@ -67,6 +68,7 @@ contains
 !  gravity force                          
 !----------------------------------------------------------------------------------------------------------  
     u0 = ONE / fl%rre * fluidparam%ftp0ref%m / fluidparam%ftp0ref%d / tm%ref_l0
+    tm%phy_time = tm%time * tm%ref_l0 / u0
     rtmp = tm%ref_l0 / u0 / u0 * GRAVITY
     fl%fgravity = ZERO
     if (fl%igravity == 1 ) then ! flow/gravity same dirction - x
@@ -84,9 +86,73 @@ contains
     else ! no gravity
       fl%fgravity = ZERO
     end if
+
+    if(nrank==0) then
+      if(fl%iteration == 1 .or. fl%iteration==fl%iterfrom) then
+        call Print_debug_mid_msg("The reference (dimensional) are")
+        write (*, wrtfmt1e) 'Reynolds Number:', fl%ren
+        write (*, wrtfmt1e) 'Prandtl Number:',  fluidparam%ftp0ref%Pr
+        write (*, wrtfmt1r) 'Length(s):',       tm%ref_l0
+        write (*, wrtfmt1r) 'Velocity(m/s):',   fl%ren * fluidparam%ftp0ref%m / fluidparam%ftp0ref%d / tm%ref_l0
+      end if
+    end if
     
     return
   end subroutine Update_PrGr
+!==========================================================================================================
+  subroutine Calculate_vis_sponge(fl, dm)
+    use parameters_constant_mod
+    use thermo_info_mod
+    use udf_type_mod
+    use math_mod
+    implicit none
+    !
+    type(t_domain), intent(in)    :: dm
+    type(t_flow),   intent(inout) :: fl
+    !
+    real(WP) :: x_start, Ls, vis, coeff, hx
+    real(WP) :: x, xi, x_offset
+    integer  :: i, nx, n
+    logical  :: has_sponge
+
+    if(dm%outlet_sponge_layer(1) <= MINP) return
+    ! --- sponge params ---
+    Ls = dm%outlet_sponge_layer(1)    ! sponge length
+    !
+    hx      = dm%h(1)
+    x_start = dm%lxx - Ls
+    !
+    vis = ONE / dm%outlet_sponge_layer(2)
+    coeff   = vis / TWO           ! = 1/(2*mu)
+    !
+    do n = 1, 2 
+      if (n == 1) then 
+        !Cell-centre array (ccc): global index nx
+        fl%rre_sponge_c = ZERO
+        nx       = dm%dccc%xsz(1)
+        x_offset = hx / TWO
+      else
+        !Node  array (pcc) : global index nx
+        fl%rre_sponge_p = ZERO
+        nx       = dm%dpcc%xsz(1)
+        x_offset = ZERO
+      end if
+
+      do i = 1, nx
+        x = REAL(i - 1, WP) * hx + x_offset
+        if (x < x_start) cycle
+
+        xi = (x - x_start) / Ls
+        if(n==1) then 
+          fl%rre_sponge_c(i) = coeff * (ONE - COS_WP(PI * xi))
+        else
+          fl%rre_sponge_p(i) = coeff * (ONE - COS_WP(PI * xi))
+        end if
+      end do
+    end do 
+
+    return
+  end subroutine Calculate_vis_sponge
 !==========================================================================================================
 !> \brief The main code for initialising flow variables
 !>
@@ -103,61 +169,61 @@ contains
 !----------------------------------------------------------------------------------------------------------
 !> \param[inout]  none          NA
 !==========================================================================================================
-  subroutine Calculate_xz_mean_yprofile(var, dtmp, n, varxz_work1)
-    use mpi_mod
-    use udf_type_mod
-    use parameters_constant_mod
-    use io_files_mod
-    implicit none
-    type(DECOMP_INFO), intent(in) :: dtmp
-    real(WP), dimension(dtmp%xsz(1), dtmp%xsz(2), dtmp%xsz(3)), intent(in)  :: var ! x-pencil default
-    integer,  intent(in)  :: n
-    real(WP), dimension(n), optional, intent(out) :: varxz_work1
+!   subroutine Calculate_xz_mean_yprofile(var, dtmp, n, varxz_work1)
+!     use mpi_mod
+!     use udf_type_mod
+!     use parameters_constant_mod
+!     use io_files_mod
+!     implicit none
+!     type(DECOMP_INFO), intent(in) :: dtmp
+!     real(WP), dimension(dtmp%xsz(1), dtmp%xsz(2), dtmp%xsz(3)), intent(in)  :: var ! x-pencil default
+!     integer,  intent(in)  :: n
+!     real(WP), dimension(n), optional, intent(out) :: varxz_work1
 
-    real(wp) :: varxz( n )
-    integer :: jj, i, j, k
-    integer :: nk, ni!, nk_work, ni_work
-    real(WP) :: varxz_work(n)
-    !----------------------------------------------------------------------------------------------------------
-    !   Default X-pencil
-    !----------------------------------------------------------------------------------------------------------
-    varxz = ZERO
-    varxz_work = ZERO
-    do j = 1, dtmp%xsz(2)
-      nk = 0
-      ni = 0
-      jj = dtmp%xst(2) + j - 1 !local2global_yid(j, dtmp)
-      do k = 1, dtmp%xsz(3)
-        nk = nk + 1
-        do i = 1, dtmp%xsz(1)
-          ni = ni + 1
-          varxz(jj) = varxz(jj) + var(i, j, k) !
-        end do
-      end do
-      varxz(jj) = varxz(jj) / real(nk * ni, wp)
-    end do
+!     real(wp) :: varxz( n )
+!     integer :: jj, i, j, k
+!     integer :: nk, ni!, nk_work, ni_work
+!     real(WP) :: varxz_work(n)
+!     !----------------------------------------------------------------------------------------------------------
+!     !   Default X-pencil
+!     !----------------------------------------------------------------------------------------------------------
+!     varxz = ZERO
+!     varxz_work = ZERO
+!     do j = 1, dtmp%xsz(2)
+!       nk = 0
+!       ni = 0
+!       jj = dtmp%xst(2) + j - 1 !local2global_yid(j, dtmp)
+!       do k = 1, dtmp%xsz(3)
+!         nk = nk + 1
+!         do i = 1, dtmp%xsz(1)
+!           ni = ni + 1
+!           varxz(jj) = varxz(jj) + var(i, j, k) !
+!         end do
+!       end do
+!       varxz(jj) = varxz(jj) / real(nk * ni, wp)
+!     end do
     
 
-    !call mpi_barrier(MPI_COMM_WORLD, ierror)
-    !call mpi_allreduce(ni, ni_work, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
-    !call mpi_allreduce(nk, nk_work, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
-    call mpi_allreduce(varxz, varxz_work, n, MPI_REAL_WP, MPI_SUM, MPI_COMM_WORLD, ierror)
-    varxz_work = varxz_work / real(p_col * p_col, wp)
-    if(PRESENT(varxz_work1)) varxz_work1 = varxz_work
+!     !call mpi_barrier(MPI_COMM_WORLD, ierror)
+!     !call mpi_allreduce(ni, ni_work, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+!     !call mpi_allreduce(nk, nk_work, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+!     call mpi_allreduce(varxz, varxz_work, n, MPI_REAL_WP, MPI_SUM, MPI_COMM_WORLD, ierror)
+!     varxz_work = varxz_work / real(p_col * p_col, wp)
+!     if(PRESENT(varxz_work1)) varxz_work1 = varxz_work
 
-#ifdef DEBUG_STEPS
-    if (nrank == 0) then
-      open(121, file = trim(dir_chkp)//'/check_calculate_xz_mean_yprofile.dat', position="append")
-      do j = 1, dtmp%xsz(2)
-        jj = dtmp%xst(2) + j - 1 !local2global_yid(j, dtmp)
-        write(121, *) jj, varxz_work(jj)
-      end do
-    end if
-#endif
+! #ifdef DEBUG_STEPS
+!     if (nrank == 0) then
+!       open(121, file = trim(dir_chkp)//'/check_calculate_xz_mean_yprofile.dat', position="append")
+!       do j = 1, dtmp%xsz(2)
+!         jj = dtmp%xst(2) + j - 1 !local2global_yid(j, dtmp)
+!         write(121, *) jj, varxz_work(jj)
+!       end do
+!     end if
+! #endif
     
     
-    return
-  end subroutine
+!     return
+!   end subroutine
 !==========================================================================================================
 !> \brief : 
 !> MPI : x-pencil
@@ -219,7 +285,7 @@ contains
 !----------------------------------------------------------------------------------------------------------
 !> \param[inout]         
 !==========================================================================================================
-  subroutine Check_cfl_diffusion(fl, dm)
+subroutine Check_cfl_diffusion(fl, dm, opt_tm)
     use parameters_constant_mod
     use udf_type_mod
     use mpi_mod
@@ -229,56 +295,94 @@ contains
     implicit none
     type(t_flow), intent(in) :: fl
     type(t_domain), intent(in) :: dm
+    type(t_thermo), intent(in), optional :: opt_tm
 
-    real(WP) :: cfl_diff, cfl_diff_work, rtmp, dyi, dtmax, dtmax_work
+    real(WP) :: cfl_diff_mom, cfl_diff_ene, cfl_diff_mom_work, cfl_diff_ene_work
+    real(WP) :: rtmp, rdxyz2, dyi, dtmax_mom, dtmax_ene, dtmax_mom_work, dtmax_ene_work
     integer :: i, j, k, jj
-    real(wp) :: rsp(3), rmax(3), rmax_work(3), var(5), var_work(5)
+    real(wp) :: rsp(3), var(4), var_work(4)
     
-    rmax(:) = ZERO
-    cfl_diff = ZERO
+    cfl_diff_mom = ZERO
+    cfl_diff_ene = ZERO
 
     rsp(1) = dm%h2r(1)
     rsp(2) = dm%h2r(2)
     rsp(3) = dm%h2r(3)
+    
+    if(dm%is_thermo .and. (.not.present(opt_tm))) &
+    call Print_error_msg('Input error for subroutine: Check_cfl_diffusion')
+
     do j = 1, dm%dccc%xsz(2)
-      jj = dm%dccc%xst(2) + j - 1 !local2global_yid(j, dm%dccc)
+      jj = dm%dccc%xst(2) + j - 1
       if(dm%is_stretching(2)) then
         dyi = dm%yMappingcc(jj, 1) / dm%h(2)
         rsp(2) = dyi * dyi
       end if
+      !
       do k = 1, dm%dccc%xsz(3)
         if(dm%icoordinate == ICYLINDRICAL) &
-        rsp(3) = dm%h2r(3) * dm%rci(jj) * dm%rci(jj)
+          rsp(3) = dm%h2r(3) * dm%rci(jj) * dm%rci(jj)
+        !
         do i = 1, dm%dccc%xsz(1)
-          rtmp = rsp(1) + rsp(2) + rsp(3)
-          if(dm%is_thermo) rtmp = rtmp * fl%mVisc(i, j, k) / fl%dDens(i, j, k)
-          if(rtmp > cfl_diff) then
-            cfl_diff = rtmp
-            rmax(:) = rsp(:)
+          rdxyz2 = rsp(1) + rsp(2) + rsp(3)
+          !
+          ! Momentum diffusion
+          if(dm%is_thermo) then
+            rtmp = rdxyz2 * fl%mVisc(i, j, k)
+          else
+            rtmp = rdxyz2
           end if
+          if(rtmp > cfl_diff_mom) then
+            cfl_diff_mom = rtmp
+          end if
+          !
+          ! Energy diffusion (if thermodynamic model is active)
+          if(dm%is_thermo) then
+            rtmp = rdxyz2 * opt_tm%kCond(i, j, k)
+            if(rtmp > cfl_diff_ene) cfl_diff_ene = rtmp
+          end if
+          !
         end do
       end do
     end do 
 
-    dtmax = ONE/(TWO*fl%rre * cfl_diff)
-    cfl_diff = cfl_diff * TWO * dm%dt * fl%rre
+    dtmax_mom = ONE / (TWO * fl%rre * cfl_diff_mom)
+    cfl_diff_mom = cfl_diff_mom * TWO * dm%dt * fl%rre
+    
+    if(dm%is_thermo) then
+      dtmax_ene = ONE / (TWO * opt_tm%rPrRen * cfl_diff_ene)
+      cfl_diff_ene = cfl_diff_ene * TWO * dm%dt * opt_tm%rPrRen
+    end if
 
-    !call mpi_barrier(MPI_COMM_WORLD, ierror)
-    var(1:3) = rmax(1:3)
-    var(4) = dtmax
-    var(5) = cfl_diff
-    call mpi_allreduce(var, var_work, 5, MPI_REAL_WP, MPI_MAX, MPI_COMM_WORLD, ierror)
-    rmax_work(1:3) = var(1:3)
-    dtmax_work = var(4)
-    cfl_diff_work = var(5)
+    var(1) = dtmax_mom
+    var(2) = cfl_diff_mom
+    var(3) = dtmax_ene
+    var(4) = cfl_diff_ene
+    
+    call mpi_allreduce(var, var_work, 4, MPI_REAL_WP, MPI_MAX, MPI_COMM_WORLD, ierror)
+
+    dtmax_mom_work = var_work(1)
+    cfl_diff_mom_work = var_work(2)
+    dtmax_ene_work = var_work(3)
+    cfl_diff_ene_work = var_work(4)
 
     if(nrank == 0) then
-      write (*, wrtfmt1el) "Diffusion number :", cfl_diff_work
-      if(cfl_diff_work > ONE) then 
-        call Print_warning_msg("Warning: Diffusion number is larger than 1. Numerical instability could occur.")
-        write(*,*) 'Please reduce the time step size lower than ', dtmax_work
+      write (*, wrtfmt2e) "Momentum diffu. number. & max. dt:", cfl_diff_mom_work, dtmax_mom_work
+      if(cfl_diff_mom_work > ONE) then 
+        call Print_warning_msg("Warning: Momentum diffusion number is larger than 1. Numerical instability could occur.")
+        write(*,*) 'Please reduce the time step size lower than ', dtmax_mom_work
         write(*,*) 'Or Please consider increase your mesh size'
-        write(*,*) '1/delta^2 Contributes from x, y, z directions:', rmax_work(1:3)
+       ! write(*,*) '1/delta^2 Contributes from x, y, z directions:', rmax_work(1:3)
+      end if
+      
+      if(dm%is_thermo) then
+        write (*, wrtfmt2e) "Energy diffu. number & max. dt:", cfl_diff_ene_work, dtmax_ene_work
+        if(cfl_diff_ene_work > ONE) then 
+          call Print_warning_msg("Warning: Energy diffusion number is larger than 1. Numerical instability could occur.")
+          write(*,*) 'Please reduce the time step size lower than ', dtmax_ene_work
+          write(*,*) 'Or Please consider increase your mesh size'
+          !write(*,*) '1/delta^2 Contributes from x, y, z directions:', rmax_work(1:3)
+        end if
       end if
     end if
     
@@ -299,7 +403,7 @@ contains
 !----------------------------------------------------------------------------------------------------------
 !> \param[inout]         
 !==========================================================================================================
-  subroutine Check_cfl_convection(u, v, w, dm, opt_cfl)
+  subroutine Check_cfl_convection(u, v, w, dm)
     use parameters_constant_mod
     use udf_type_mod
     use operations
@@ -309,7 +413,6 @@ contains
     implicit none
 
     type(t_domain), intent(inout) :: dm
-    real(WP), intent(out), optional :: opt_cfl
     real(WP), dimension(dm%dpcc%xsz(1), dm%dpcc%xsz(2), dm%dpcc%xsz(3)), intent(in) :: u
     real(WP), dimension(dm%dcpc%xsz(1), dm%dcpc%xsz(2), dm%dcpc%xsz(3)), intent(in) :: v
     real(WP), dimension(dm%dccp%xsz(1), dm%dccp%xsz(2), dm%dccp%xsz(3)), intent(in) :: w
@@ -341,7 +444,7 @@ contains
     real(WP) ::   w_zpencil (dm%dccp%zsz(1), &
                              dm%dccp%zsz(2), &
                              dm%dccp%zsz(3))
-    !real(WP)   :: cfl_convection, cfl_convection_work
+    real(WP)   :: dtmax
     real(wp) :: cfl(2), dy
     integer :: j
 !----------------------------------------------------------------------------------------------------------
@@ -354,17 +457,17 @@ contains
     accc_ypencil = ZERO
     accc_zpencil = ZERO
 !----------------------------------------------------------------------------------------------------------
-! X-pencil : u_ccc / dx * dt
+! X-pencil : u_ccc / dx
 !----------------------------------------------------------------------------------------------------------
     call Get_x_midp_P2C_3D(u, accc_xpencil, dm, dm%iAccuracy, dm%ibcx_qx, dm%fbcx_qx)
-    var_xpencil = accc_xpencil * dm%h1r(1) * dm%dt
+    var_xpencil = accc_xpencil * dm%h1r(1)
 !----------------------------------------------------------------------------------------------------------
-! Y-pencil : v_ccc / dy / r * dt
+! Y-pencil : v_ccc / dy / r
 !----------------------------------------------------------------------------------------------------------
     call transpose_x_to_y(var_xpencil, var_ypencil, dm%dccc)
     call transpose_x_to_y(v,             v_ypencil, dm%dcpc)
     call Get_y_midp_P2C_3D(v_ypencil, accc_ypencil, dm, dm%iAccuracy, dm%ibcy_qy, dm%fbcy_qy)
-    accc_ypencil = accc_ypencil * dm%h1r(2) * dm%dt
+    accc_ypencil = accc_ypencil * dm%h1r(2)
     if(dm%is_stretching(2)) then
       do j = 1, dm%dccc%ysz(2)
         accc_ypencil(:, j, :) = accc_ypencil(:, j, :) * dm%yMappingcc(j, 1)
@@ -388,12 +491,17 @@ contains
     end if
     call transpose_y_to_z(w_ypencil,     w_zpencil, dm%dccp)
     call Get_z_midp_P2C_3D(w_zpencil, accc_zpencil, dm, dm%iAccuracy, dm%ibcz_qz, dm%fbcz_qz)
-    var_zpencil = var_zpencil +  accc_zpencil * dm%h1r(3) * dm%dt
+    var_zpencil = var_zpencil +  accc_zpencil * dm%h1r(3)
 !----------------------------------------------------------------------------------------------------------
 ! Z-pencil : Find the maximum 
 !----------------------------------------------------------------------------------------------------------
-    call Find_max_min_3d(var_zpencil, opt_calc='MAXI', opt_work=cfl, opt_name='CFL (convection) :')
-    if(present(opt_cfl)) opt_cfl = cfl(2)
+    var_zpencil = var_zpencil * dm%dt
+    call Find_max_min_3d(var_zpencil, opt_calc='MAXI', opt_work=cfl)
+    dtmax = dm%dt/cfl(2)
+    if(nrank == 0) then
+      write (*, wrtfmt2e) "CFL No. & max. dt:", cfl(2), dtmax
+    end if
+
     if(cfl(2) > TWO) then 
       dm%dt = dm%dt / REAL(ceiling(cfl(2)/ 5.0_WP) * 5, WP)
       if(nrank == 0) then
@@ -704,6 +812,11 @@ contains
                           intg_fbcx(1) - intg_fbcx(2) + &
                           intg_fbcy(1) - intg_fbcy(2) + &
                           intg_fbcz(1) - intg_fbcz(2) 
+    !
+    ! if(nrank==0) then
+    !   write(*, '(4X, A, 4ES13.5)') 'mass balance check(-/+x, -/+y):', mass_imbalance(1:4)
+    !   write(*, '(4X, A, 4ES13.5)') 'mass balance check(-/+z, m, s):', mass_imbalance(5:8)
+    ! end if
     return
   end subroutine 
 
@@ -729,7 +842,7 @@ contains
     !
     if(dm%is_conv_outlet(3)) then
       call transpose_to_z_pencil(accc_xpencil, accc_zpencil, dm%dccc, IPENCIL(1))
-      do i = 1, dm%dccc%zsz(3)
+      do k = 1, dm%dccc%zsz(3)
         accc_zpencil(:,:,k) = accc_zpencil(:,:,k) * (ONE - dm%zdamping(k) )
       end do
     end if

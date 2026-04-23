@@ -40,10 +40,10 @@ contains
 
     if(nrank == 0) call Print_debug_inline_msg("writing out instantaneous 3d flow data ...")
 
-    call write_one_3d_array(fl%qx, 'qx', dm%idom, fl%iteration, dm%dpcc)
-    call write_one_3d_array(fl%qy, 'qy', dm%idom, fl%iteration, dm%dcpc)
-    call write_one_3d_array(fl%qz, 'qz', dm%idom, fl%iteration, dm%dccp)
-    call write_one_3d_array(fl%pres, 'pr', dm%idom, fl%iteration, dm%dccc)
+    call write_one_3d_array(fl%qx, 'qx', dm%idom, fl%iteration, dm%dpcc, dm%io_mode)
+    call write_one_3d_array(fl%qy, 'qy', dm%idom, fl%iteration, dm%dcpc, dm%io_mode)
+    call write_one_3d_array(fl%qz, 'qz', dm%idom, fl%iteration, dm%dccp, dm%io_mode)
+    call write_one_3d_array(fl%pres, 'pr', dm%idom, fl%iteration, dm%dccc, dm%io_mode)
 
     if(nrank == 0) call Print_debug_end_msg()
     return
@@ -62,8 +62,8 @@ contains
 
     if(nrank == 0) call Print_debug_inline_msg("writing out instantaneous 3d thermo data ...")
 
-    call write_one_3d_array(tm%rhoh,  'rhoh', dm%idom, tm%iteration, dm%dccc)
-    call write_one_3d_array(tm%tTemp, 'temp', dm%idom, tm%iteration, dm%dccc)
+    call write_one_3d_array(tm%rhoh,  'rhoh', dm%idom, tm%iteration, dm%dccc, dm%io_mode)
+    call write_one_3d_array(tm%tTemp, 'temp', dm%idom, tm%iteration, dm%dccc, dm%io_mode)
 
     if(nrank == 0) call Print_debug_end_msg()
     return
@@ -187,10 +187,12 @@ contains
     if(.not. dm%is_record_xoutlet) return
     if(fl%iteration < dm%ndbstart) return
 
-    ! if dm%ndbfre = 10, and start from 16
+    ! if dm%ndbfre = 10, and start from 36 to 65
     ! store : 
-    !     To store: 16, 17, 18,..., 25 (MOD: 1, 2, ..., 0)
-    !        niter:  1,  2,  3,..., 0
+    !     To store: 36, 37, 38,...,44, 45 at file 10*(iter=0)
+    !     To store: 46, 47, 48,...,54, 55 at file 10*(iter=1)
+    !     To store: 56, 57, 58,...,64, 65 at file 10*(iter=2)
+    !        niter: 1,  2,  3, ..., 9, 0
     niter = mod(fl%iteration - dm%ndbstart + 1, dm%ndbfre) !
     if(niter == 1) then ! re-initialize at begin of each cycle
       dm%fbcx_qx_outl1 = MAXP
@@ -289,26 +291,25 @@ contains
 
     call append_instantaneous_xoutlet(fl, dm, niter)
 
-    ! if dm%ndbfre = 10, and start from 16
+    ! if dm%ndbfre = 10, and start from 36 to 65
     ! store : 
-    !     To store: 16, 17, 18,..., 25 (MOD: 1, 2, ..., 0)
-    !        niter:  1,  2,  3,..., 0->10
-    !     To store: 26, 27, 28,..., 35 (MOD: 1, 2, ..., 0)
-    !        niter:  1,  2,  3,..., 0->10
-    !    file name: 10, 20, ... 
+    !     To store: 36, 37, 38,...,44, 45 at file 10*(iter=0)
+    !     To store: 46, 47, 48,...,54, 55 at file 10*(iter=1)
+    !     To store: 56, 57, 58,...,64, 65 at file 10*(iter=2)
+    !        niter: 1,  2,  3, ..., 9, 0
     !write(*,*) 'iter, niter', fl%iteration, niter
     if(niter == dm%ndbfre) then
       if( mod(fl%iteration - dm%ndbstart + 1, dm%ndbfre) /= 0 .and. nrank == 0) &
       call Print_warning_msg("niter /= dm%ndbfre, something wrong in writing outlet data")
-      iter = (fl%iteration - dm%ndbstart + 1 )/dm%ndbfre * dm%ndbfre
-      call write_one_3d_array(dm%fbcx_qx_outl1, 'outlet1_qx', dm%idom, iter, dm%dxcc)
-      call write_one_3d_array(dm%fbcx_qx_outl2, 'outlet2_qx', dm%idom, iter, dm%dxcc)
-      call write_one_3d_array(dm%fbcx_qy_outl1, 'outlet1_qy', dm%idom, iter, dm%dxpc)
-      call write_one_3d_array(dm%fbcx_qy_outl2, 'outlet2_qy', dm%idom, iter, dm%dxpc)
-      call write_one_3d_array(dm%fbcx_qz_outl1, 'outlet1_qz', dm%idom, iter, dm%dxcp)
-      call write_one_3d_array(dm%fbcx_qz_outl2, 'outlet2_qz', dm%idom, iter, dm%dxcp)
-      call write_one_3d_array(dm%fbcx_pr_outl1, 'outlet1_pr', dm%idom, iter, dm%dxcc)
-      call write_one_3d_array(dm%fbcx_pr_outl2, 'outlet2_pr', dm%idom, iter, dm%dxcc)
+      iter = (fl%iteration - dm%ndbstart)/dm%ndbfre * dm%ndbfre
+      call write_one_3d_array(dm%fbcx_qx_outl1, 'outlet1_qx', dm%idom, iter, dm%dxcc, dm%io_mode)
+      call write_one_3d_array(dm%fbcx_qx_outl2, 'outlet2_qx', dm%idom, iter, dm%dxcc, dm%io_mode)
+      call write_one_3d_array(dm%fbcx_qy_outl1, 'outlet1_qy', dm%idom, iter, dm%dxpc, dm%io_mode)
+      call write_one_3d_array(dm%fbcx_qy_outl2, 'outlet2_qy', dm%idom, iter, dm%dxpc, dm%io_mode)
+      call write_one_3d_array(dm%fbcx_qz_outl1, 'outlet1_qz', dm%idom, iter, dm%dxcp, dm%io_mode)
+      call write_one_3d_array(dm%fbcx_qz_outl2, 'outlet2_qz', dm%idom, iter, dm%dxcp, dm%io_mode)
+      call write_one_3d_array(dm%fbcx_pr_outl1, 'outlet1_pr', dm%idom, iter, dm%dxcc, dm%io_mode)
+      call write_one_3d_array(dm%fbcx_pr_outl2, 'outlet2_pr', dm%idom, iter, dm%dxcc, dm%io_mode)
       !if(nrank == 0) write (*,*) " writing outlet database at ", fl%iteration, 'for iter =', iter -  dm%ndbfre, 'to ', iter
     end if
 ! #ifdef DEBUG_STEPS
@@ -328,6 +329,7 @@ contains
 !==========================================================================================================
   subroutine assign_instantaneous_xinlet(fl, dm)
     use convert_primary_conservative_mod
+    use typeconvert_mod
     implicit none 
     type(t_flow), intent(inout) :: fl
     type(t_domain), intent(inout) :: dm
@@ -338,16 +340,11 @@ contains
     ! based on x pencil
     if(.not. dm%is_read_xinlet) return
 
-    if(fl%iteration > dm%ndbend) then
-      iter = mod(fl%iteration, dm%ndbend) ! database recycle
-    else if (fl%iteration == 0) then
-      iter = 1
-    else
-      iter = fl%iteration
-    end if
+    iter = max(1, fl%iteration)
+    iter = mod(iter-1, dm%ndbfre) + 1
 
-    iter = mod(iter, dm%ndbfre)
-    if(iter == 0) iter = dm%ndbfre
+    !if (nrank == 0) &
+    !  call Print_debug_mid_msg('inlet assigned at iteration '//trim(int2str(iter))
 
     if(dm%ibcx_nominal(1, 1) == IBC_DATABASE) then
       dtmp = dm%dpcc
@@ -440,27 +437,33 @@ contains
 !     return
 !   end subroutine
 !==========================================================================================================
-  subroutine read_instantaneous_xinlet(fl, dm)
+  subroutine read_instantaneous_xinlet(fl, dm, opt_iter)
     use typeconvert_mod
     use io_tools_mod
     use parameters_constant_mod
     implicit none 
     type(t_flow), intent(inout) :: fl
     type(t_domain), intent(inout) :: dm
+    integer, intent(in), optional :: opt_iter
     
     character(64):: data_flname_path
     integer :: idom, iter, niter, j, nmax, iter0
 
 
     if(.not. dm%is_read_xinlet) return
-
-
-    ! if dm%ndbfre = 10, and start from 16
+    ! ----------------------------------------------------------------------------
+    ! if dm%ndbfre = 10, and start from 36 to 65
     ! store : 
-    !     To store: 16, 17, 18,..., 25 (MOD: 1, 2, ..., 0)
-    !        niter:  1,  2,  3,..., 0
-    !    file name: 10, 20, 45 ...
-
+    !     To store: 36, 37, 38,...,44, 45 at file 10*1 at block = 1
+    !     To store: 46, 47, 48,...,54, 55 at file 10*2 at block = 2
+    !     To store: 56, 57, 58,...,64, 65 at file 10*3 at block = 3
+    !        niter: 1,  2,  3, ..., 9, 0
+    ! read: 
+    !     iter = 1, 2, 3, ...10, read file 10*1 at block = 1
+    !     iter = 11, 12, ...,20, read file 10*2 at block = 2
+    !     iter = 21, 22, ...,30, read file 10*3 at block = 3
+    !     iter = 31, 32, ...,40, read file 10*1 at block = 1
+    ! ----------------------------------------------------------------------------
     iter = fl%iteration
     iter0 = fl%iterfrom
     nmax = dm%ndbend - dm%ndbstart
@@ -486,24 +489,8 @@ contains
       call read_one_3d_array(dm%fbcx_qz_inl1, 'outlet1_qz', dm%idom, niter, dm%dxcp)
       call read_one_3d_array(dm%fbcx_qz_inl2, 'outlet2_qz', dm%idom, niter, dm%dxcp)
 
-      dm%is_x_inlet_initialised = .true.
-
       !call read_one_3d_array(dm%fbcx_pr_inl1, 'outlet1_pr', dm%idom, niter, dm%dxcc)
       !call read_one_3d_array(dm%fbcx_pr_inl2, 'outlet2_pr', dm%idom, niter, dm%dxcc)
-! #ifdef DEBUG_STEPS
-      !write(*,*) 'inlet bc1', niter, dm%fbcx_qx_inl1(:, 32, 1)
-      !write(*,*) 'inlet bc2', niter, dm%fbcx_qx_inl1(:, 32, 32)
-      ! write(*,*) 'inlet bc1-end', niter, dm%fbcx_qx_inl1(niter, :, 1)
-      ! write(*,*) 'inlet bc2-end', niter, dm%fbcx_qx_inl1(niter, :, 32)
-      ! do j = 1, dm%dpcc%xsz(2)
-      !   write(*,*) dm%dpcc%xst(2) + j - 1, &
-      !   dm%fbcx_qx_inl1(niter, j, 1:64)
-      ! end do
-! #endif
-    end if
-
-    if (.not. dm%is_x_inlet_initialised) then
-      if (nrank == 0) call Print_error_msg("Inlet not initialised, start iteration must be multiple of ndbfreq")
     end if
 
     call assign_instantaneous_xinlet(fl, dm) ! every iteration
@@ -523,6 +510,13 @@ module io_field_interpolation_mod
   type(t_thermo) :: thermo_tgt
   character(len = 21) :: input_tgt = 'input_chapsim_tgt.ini'
 
+  integer, parameter :: XLOC_CELL = 1, &
+                        XLOC_FACE = 2, &
+                        YLOC_CELL = 3, &
+                        YLOC_FACE = 4, &
+                        ZLOC_CELL = 5, &
+                        ZLOC_FACE = 6
+
   private :: Read_input_parameters_tgt
   private :: binary_search_loc2index
   private :: trilinear_interp_point
@@ -531,14 +525,12 @@ module io_field_interpolation_mod
 
   contains 
 !==========================================================================================================
-  subroutine Read_input_parameters_tgt(dm, fl, tm, flinput)
+  subroutine Read_input_parameters_tgt(dm, flinput)
     use parameters_constant_mod
     use print_msg_mod
     implicit none
     character(len = *), intent(in) :: flinput 
     type(t_domain), intent(inout) :: dm
-    type(t_flow)  , intent(inout) :: fl
-    type(t_thermo), intent(inout) :: tm
 
     integer, parameter :: IOMSG_LEN = 200
     character(len = IOMSG_LEN) :: iotxt
@@ -556,7 +548,7 @@ module io_field_interpolation_mod
     if(ioerr /= 0) then
       ! write (*, *) 'Problem openning : ', flinput, ' for reading.'
       ! write (*, *) 'Message: ', trim (iotxt)
-      call Print_error_msg('Error in opening the input file: input_chapsim_interp_source.ini')
+      call Print_error_msg('Error in opening the input file:'//trim(flinput)//' for reading. Message: '//trim(iotxt))
     end if
     !
     if(nrank == 0) &
@@ -719,139 +711,274 @@ module io_field_interpolation_mod
   subroutine build_up_interp_target_field_flow(fl_src, dm_src, fl_tgt, dm_tgt)
     use udf_type_mod
     use parameters_constant_mod
+    use print_msg_mod
     implicit none
-    type(t_domain), intent(in)    :: dm_src  ! source
-    type(t_flow)  , intent(in)    :: fl_src  ! source
-    type(t_domain), intent(inout) :: dm_tgt  ! target
-    type(t_flow)  , intent(inout) :: fl_tgt  ! target
     !
-    type(DECOMP_INFO) :: dtmp
-    integer :: i, j, k, ii, jj, kk
-    real(WP) :: xc_src(dm_src%nc(1))
-    real(WP) :: zc_src(dm_src%nc(3))
-    real(WP) :: xp_src(dm_src%np(1))
-    real(WP) :: zp_src(dm_src%np(3))
-    real(WP) :: x_target, y_target, z_target
-    real(WP) :: var_target
+    type(t_domain), intent(in)    :: dm_src
+    type(t_flow)  , intent(in)    :: fl_src
+    type(t_domain), intent(inout) :: dm_tgt
+    type(t_flow)  , intent(inout) :: fl_tgt
     ! 
-    ! x-center and x-face
-    xc_src = dm_src%h(1) * ( [(REAL(i-1,WP)+HALF, i=1,dm_src%nc(1))] )
-    xp_src = dm_src%h(1) * ( [(REAL(i-1,WP),      i=1,dm_src%np(1))] )
-    ! z-center and z-face
-    zc_src = dm_src%h(3) * ( [(REAL(k-1,WP)+HALF, k=1,dm_src%nc(3))] )
-    zp_src = dm_src%h(3) * ( [(REAL(k-1,WP),      k=1,dm_src%np(3))] )
-    ! ux 
-    dtmp = dm_tgt%dpcc
-    do k = 1, dtmp%xsz(3)
-      kk = dtmp%xst(3) + k - 1
-      z_target = dm_tgt%h(3) * (REAL(kk - 1, WP) + HALF)
-      do j = 1, dtmp%xsz(2)
-        jj = dtmp%xst(2) + j - 1
-        y_target = dm_tgt%yc(jj)
-        do i = 1, dtmp%xsz(1)
-          x_target = dm_tgt%h(1) * REAL(i - 1, WP)
-          call trilinear_interp_point(x_target, y_target, z_target, &
-                                      xp_src(:), dm_src%yc(:), zc_src(:), fl_src%qx(:, :, :), var_target)
-          fl_tgt%qx(i, j, k) = var_target
-        end do
-      end do
-    end do
-    ! uy
-    dtmp = dm_tgt%dcpc
-    do k = 1, dtmp%xsz(3)
-      kk = dtmp%xst(3) + k - 1
-      z_target = dm_tgt%h(3) * (REAL(kk - 1, WP) + HALF)
-      do j = 1, dtmp%xsz(2)
-        jj = dtmp%xst(2) + j - 1
-        y_target = dm_tgt%yp(jj)
-        do i = 1, dtmp%xsz(1)
-          x_target = dm_tgt%h(1) * (REAL(i - 1, WP) + HALF)
-          call trilinear_interp_point(x_target, y_target, z_target, &
-                                      xc_src(:), dm_src%yp(:), zc_src(:), fl_src%qy(:, :, :), var_target)
-          fl_tgt%qy(i, j, k) = var_target
-        end do
-      end do
-    end do
-    ! uz
-    dtmp = dm_tgt%dccp
-    do k = 1, dtmp%xsz(3)
-      kk = dtmp%xst(3) + k - 1
-      z_target = dm_tgt%h(3) * (REAL(kk - 1, WP))
-      do j = 1, dtmp%xsz(2)
-        jj = dtmp%xst(2) + j - 1
-        y_target = dm_tgt%yc(jj)
-        do i = 1, dtmp%xsz(1)
-          x_target = dm_tgt%h(1) * (REAL(i - 1, WP) + HALF)
-          call trilinear_interp_point(x_target, y_target, z_target, &
-                                      xc_src(:), dm_src%yc(:), zp_src(:), fl_src%qz(:, :, :), var_target)
-          fl_tgt%qz(i, j, k) = var_target
-        end do
-      end do
-    end do
-    ! p
-    dtmp = dm_tgt%dccc
-    do k = 1, dtmp%xsz(3)
-      kk = dtmp%xst(3) + k - 1
-      z_target = dm_tgt%h(3) * (REAL(kk - 1, WP)+ HALF)
-      do j = 1, dtmp%xsz(2)
-        jj = dtmp%xst(2) + j - 1
-        y_target = dm_tgt%yc(jj)
-        do i = 1, dtmp%xsz(1)
-          x_target = dm_tgt%h(1) * (REAL(i - 1, WP) + HALF)
-          call trilinear_interp_point(x_target, y_target, z_target, &
-                                      xc_src(:), dm_src%yc(:), zc_src(:), fl_src%pres(:, :, :), var_target)
-          fl_tgt%pres(i, j, k) = var_target
-        end do
-      end do
-    end do
+    integer  :: imode, i, j, k
+    real(WP) :: Lbuf_x
+    real(WP) :: xc_src(dm_src%nc(1)), zc_src(dm_src%nc(3))
+    real(WP) :: xp_src(dm_src%np(1)), zp_src(dm_src%np(3))
+    !
+    if (abs(dm_src%lzz - dm_tgt%lzz) > 1.0e-10_wp) then
+      call print_error_msg("build_up_interp_target_field_flow: cross-section mismatch in z")
+    end if
+    if (abs(dm_src%lyt - dm_tgt%lyt) > 1.0e-10_wp) then
+      call print_error_msg("build_up_interp_target_field_flow: cross-section mismatch in yt")
+    end if
+    if (abs(dm_src%lyb - dm_tgt%lyb) > 1.0e-10_wp) then
+      call print_error_msg("build_up_interp_target_field_flow: cross-section mismatch in yb")
+    end if
+    !-----------------------------------------
+    ! extension controls
+    !-----------------------------------------
+    if (dm_src%lxx > dm_tgt%lxx) then
+      imode = 1 ! clamp to source bounds, i.e., constant extrapolation outside source bounds
+    else if (dm_src%lxx < dm_tgt%lxx) then
+      imode = 2 ! extend by repeating the source field in x direction
+    else 
+      imode = 0 ! no extension/clammping needed, source and target have the same x length
+    end if
+    !
+    ! default repeated chunk length
+    Lbuf_x = ZERO
+    if (imode == 2) then
+      Lbuf_x = MAX((dm_tgt%lxx - dm_src%lxx) / FIVE, TWO * dm_tgt%h(1))
+    end if
+    !-----------------------------------------
+    ! source coordinates
+    !-----------------------------------------
+    xc_src = dm_src%h(1) * ([(real(i-1,WP) + HALF, i=1,dm_src%nc(1))])
+    xp_src = dm_src%h(1) * ([(real(i-1,WP)       , i=1,dm_src%np(1))])
+
+    zc_src = dm_src%h(3) * ([(real(k-1,WP) + HALF, k=1,dm_src%nc(3))])
+    zp_src = dm_src%h(3) * ([(real(k-1,WP)       , k=1,dm_src%np(3))])
+
+    ! qx : x-face, y-center, z-center
+    call interp_field_3d_generic(dm_src, dm_tgt,                    &
+        xp_src, dm_src%yc, zc_src,                                  &
+        fl_src%qx, fl_tgt%qx, dm_tgt%dpcc,                          &
+        XLOC_FACE, YLOC_CELL, ZLOC_CELL,                            &
+        imode, Lbuf_x)
+
+    ! qy : x-center, y-face, z-center
+    call interp_field_3d_generic(dm_src, dm_tgt,                    &
+        xc_src, dm_src%yp, zc_src,                                  &
+        fl_src%qy, fl_tgt%qy, dm_tgt%dcpc,                          &
+        XLOC_CELL, YLOC_FACE, ZLOC_CELL,                            &
+        imode, Lbuf_x)
+
+    ! qz : x-center, y-center, z-face
+    call interp_field_3d_generic(dm_src, dm_tgt,                    &
+        xc_src, dm_src%yc, zp_src,                                  &
+        fl_src%qz, fl_tgt%qz, dm_tgt%dccp,                          &
+        XLOC_CELL, YLOC_CELL, ZLOC_FACE,                            &
+        imode, Lbuf_x)
+
+    ! pressure : x-center, y-center, z-center
+    call interp_field_3d_generic(dm_src, dm_tgt,                     &
+        xc_src, dm_src%yc, zc_src,                                  &
+        fl_src%pres, fl_tgt%pres, dm_tgt%dccc,                      &
+        XLOC_CELL, YLOC_CELL, ZLOC_CELL,                            &
+        imode, Lbuf_x)
     return
-  end subroutine
+  end subroutine build_up_interp_target_field_flow
 !==========================================================================================================
   subroutine build_up_interp_target_field_thermo(tm_src, dm_src, tm_tgt, dm_tgt)
     use udf_type_mod
     use parameters_constant_mod
+    use print_msg_mod
     implicit none
-    type(t_domain), intent(in)    :: dm_src  ! source
-    type(t_thermo), intent(in)    :: tm_src  ! source
-    type(t_domain), intent(inout) :: dm_tgt  ! target
-    type(t_thermo), intent(inout) :: tm_tgt  ! target
     !
-    type(DECOMP_INFO) :: dtmp
+    type(t_domain), intent(in)    :: dm_src
+    type(t_thermo), intent(in)    :: tm_src
+    type(t_domain), intent(inout) :: dm_tgt
+    type(t_thermo), intent(inout) :: tm_tgt
+    !
+    integer  :: imode, i, j, k
+    real(WP) :: Lbuf_x
+    real(WP) :: xc_src(dm_src%nc(1)), zc_src(dm_src%nc(3))
+    real(WP) :: xp_src(dm_src%np(1)), zp_src(dm_src%np(3))
+    !
+    if (abs(dm_src%lzz - dm_tgt%lzz) > 1.0e-10_wp) then
+      call print_error_msg("build_up_interp_target_field_flow: cross-section mismatch in z")
+    end if
+    if (abs(dm_src%lyt - dm_tgt%lyt) > 1.0e-10_wp) then
+      call print_error_msg("build_up_interp_target_field_flow: cross-section mismatch in yt")
+    end if
+    if (abs(dm_src%lyb - dm_tgt%lyb) > 1.0e-10_wp) then
+      call print_error_msg("build_up_interp_target_field_flow: cross-section mismatch in yb")
+    end if
+    !-----------------------------------------
+    ! extension controls
+    !-----------------------------------------
+    if (dm_src%lxx > dm_tgt%lxx) then
+      imode = 1 ! clamp to source bounds, i.e., constant extrapolation outside source bounds
+    else if (dm_src%lxx < dm_tgt%lxx) then
+      imode = 2 ! extend by repeating the source field in x direction
+    else 
+      imode = 0 ! no extension/clammping needed, source and target have the same x length
+    end if
+    !
+    ! default repeated chunk length
+    Lbuf_x = ZERO
+    if (imode == 2) then
+      Lbuf_x = MAX((dm_tgt%lxx - dm_src%lxx) / FIVE, TWO * dm_tgt%h(1))
+    end if
+    !-----------------------------------------
+    ! source coordinates
+    !-----------------------------------------
+    xc_src = dm_src%h(1) * ([(real(i-1,WP) + HALF, i=1,dm_src%nc(1))])
+    xp_src = dm_src%h(1) * ([(real(i-1,WP)       , i=1,dm_src%np(1))])
+
+    zc_src = dm_src%h(3) * ([(real(k-1,WP) + HALF, k=1,dm_src%nc(3))])
+    zp_src = dm_src%h(3) * ([(real(k-1,WP)       , k=1,dm_src%np(3))])
+
+    ! rhoh : x-center, y-center, z-center
+    call interp_field_3d_generic(dm_src, dm_tgt,                     &
+        xc_src, dm_src%yc, zc_src,                                  &
+        tm_src%rhoh, tm_tgt%rhoh, dm_tgt%dccc,                      &
+        XLOC_CELL, YLOC_CELL, ZLOC_CELL,                            &
+        imode, Lbuf_x)
+
+    ! tTemp : x-center, y-center, z-center
+    call interp_field_3d_generic(dm_src, dm_tgt,                     &
+        xc_src, dm_src%yc, zc_src,                                  &
+        tm_src%tTemp, tm_tgt%tTemp, dm_tgt%dccc,                      &
+        XLOC_CELL, YLOC_CELL, ZLOC_CELL,                            &
+        imode, Lbuf_x)
+    return
+  end subroutine build_up_interp_target_field_thermo
+!==========================================================================================================
+  subroutine interp_field_3d_generic(dm_src, dm_tgt, xsrc, ysrc, zsrc, fsrc, ftgt, dtmp, &
+                                    xloc_tgt, yloc_tgt, zloc_tgt, extend_mode, extend_length)
+    use udf_type_mod
+    use parameters_constant_mod
+    implicit none
+    !
+    type(t_domain)   , intent(in)    :: dm_src
+    type(t_domain)   , intent(in)    :: dm_tgt
+    type(DECOMP_INFO), intent(in)    :: dtmp
+    real(WP)         , intent(in)    :: xsrc(:), ysrc(:), zsrc(:)
+    real(WP)         , intent(in)    :: fsrc(:, :, :)
+    real(WP)         , intent(inout) :: ftgt(:, :, :)
+    integer          , intent(in)    :: xloc_tgt, yloc_tgt, zloc_tgt
+    integer          , intent(in)    :: extend_mode
+    real(WP)         , intent(in)    :: extend_length
+    !
     integer :: i, j, k, ii, jj, kk
-    real(WP) :: xc_src(dm_src%nc(1))
-    real(WP) :: zc_src(dm_src%nc(3))
     real(WP) :: x_target, y_target, z_target
-    real(WP) :: var_target
-    !
-    ! xc
-    do i = 1, dm_src%nc(1)
-      xc_src(i) = dm_src%h(1) * (REAL(i - 1, WP) + HALF)
-    end do
-    ! zc
-    do k = 1, dm_src%nc(3)
-      zc_src(k) = dm_src%h(3) * (REAL(k - 1, WP) + HALF)
-    end do
-    ! scalars
-    dtmp = dm_tgt%dccc
+    real(WP) :: x_tgt_eff, var_target
+
     do k = 1, dtmp%xsz(3)
       kk = dtmp%xst(3) + k - 1
-      z_target = dm_tgt%h(3) * (REAL(kk - 1, WP)+ HALF)
+      z_target = get_coord_from_loc(3, kk, dm_tgt, zloc_tgt)
+
       do j = 1, dtmp%xsz(2)
         jj = dtmp%xst(2) + j - 1
-        y_target = dm_tgt%yc(jj)
+        y_target = get_coord_from_loc(2, jj, dm_tgt, yloc_tgt)
+
         do i = 1, dtmp%xsz(1)
-          x_target = dm_tgt%h(1) * (REAL(i - 1, WP) + HALF)
-          call trilinear_interp_point(x_target, y_target, z_target, &
-                                      xc_src(:), dm_src%yc(:), zc_src(:), tm_src%rhoh(:, :, :), var_target)
-          tm_tgt%rhoh(i, j, k) = var_target
-          call trilinear_interp_point(x_target, y_target, z_target, &
-                                      xc_src(:), dm_src%yc(:), zc_src(:), tm_src%tTemp(:, :, :), var_target)
-          tm_tgt%tTemp(i, j, k) = var_target
+          ii = dtmp%xst(1) + i - 1
+          x_target = get_coord_from_loc(1, ii, dm_tgt, xloc_tgt)
+
+          x_tgt_eff = map_x_to_src_bounds(x_target, xsrc(1), xsrc(size(xsrc)), &
+                                          extend_length, extend_mode)
+
+          call trilinear_interp_point(x_tgt_eff, y_target, z_target, &
+                                      xsrc, ysrc, zsrc, fsrc, var_target)
+
+          ftgt(i, j, k) = var_target
         end do
       end do
     end do
+
+  end subroutine interp_field_3d_generic
+!==========================================================================================================
+  pure function get_coord_from_loc(dir, idx, dm, loc_type) result(coord_val)
+    use udf_type_mod
+    use parameters_constant_mod
+    implicit none
+    !
+    integer       , intent(in) :: dir
+    integer       , intent(in) :: idx
+    type(t_domain), intent(in) :: dm
+    integer       , intent(in) :: loc_type
+    real(WP)                  :: coord_val
+    !
+    select case (dir)
+    !
+    case (1)   ! x
+      select case (loc_type)
+      case (XLOC_CELL)
+        coord_val = dm%h(1) * (real(idx - 1, WP) + HALF)
+      case (XLOC_FACE)
+        coord_val = dm%h(1) *  real(idx - 1, WP)
+      end select
+    !
+    case (2)   ! y
+      select case (loc_type)
+      case (YLOC_CELL)
+        coord_val = dm%yc(idx)
+      case (YLOC_FACE)
+        coord_val = dm%yp(idx)
+      end select
+    !
+    case (3)   ! z
+      select case (loc_type)
+      case (ZLOC_CELL)
+        coord_val = dm%h(3) * (real(idx - 1, WP) + HALF)
+      case (ZLOC_FACE)
+        coord_val = dm%h(3) *  real(idx - 1, WP)
+      end select
+    !
+    end select
     return
-  end subroutine
+  end function get_coord_from_loc
+!==========================================================================================================
+  pure function map_x_to_src_bounds(x_tgt, x_min, x_max, Lbuf, mode) result(x_tgt_eff)
+    use parameters_constant_mod
+    implicit none
+
+    real(WP), intent(in) :: x_tgt, x_min, x_max, Lbuf
+    integer , intent(in) :: mode
+    real(WP)             :: x_tgt_eff
+    real(WP)             :: dx, Lloc, Luse, epsx
+
+    Lloc = x_max - x_min
+    epsx = TEN * epsilon(ONE) * max(ONE, abs(x_max))
+
+    select case (mode)
+
+    case (1)
+      ! clamp to last valid source position
+      x_tgt_eff = min(max(x_tgt, x_min), x_max - epsx)
+
+    case (2)
+      ! repeat last chunk
+      if (x_tgt <= x_max) then
+        x_tgt_eff = min(max(x_tgt, x_min), x_max - epsx)
+      else
+        if (Lbuf <= ZERO) then
+          x_tgt_eff = x_max - epsx
+        else
+          Luse = min(Lbuf, Lloc)
+          dx   = modulo(x_tgt - x_max, Luse)
+          x_tgt_eff = x_max - Luse + dx
+          x_tgt_eff = min(max(x_tgt_eff, x_min), x_max - epsx)
+        end if
+      end if
+
+    case default
+      x_tgt_eff = min(max(x_tgt, x_min), x_max - epsx)
+
+    end select
+
+  end function map_x_to_src_bounds
 !==========================================================================================================
   subroutine output_interp_target_field(dm_src, fl_src, tm_src)
     use parameters_constant_mod
@@ -862,7 +989,7 @@ module io_field_interpolation_mod
     use geometry_mod
     use domain_decomposition_mod
     use io_restart_mod
-    use io_visualisation_mod
+   !use visualisation_field_mod
     implicit none 
     type(t_domain), intent(in) :: dm_src
     type(t_flow)  , intent(in) :: fl_src
@@ -874,12 +1001,14 @@ module io_field_interpolation_mod
     end if
     
     if(nproc > 1) call Print_error_msg('Field interpolation and io are in serial mode only.')
+    ! to do : add parallel io and interpolation if needed in the future
     ! geo/domain
-    call Read_input_parameters_tgt(domain_tgt,flow_tgt, thermo_tgt, input_tgt)
+    call Read_input_parameters_tgt(domain_tgt, input_tgt)
     domain_tgt%is_periodic(:) = dm_src%is_periodic(:)
     domain_tgt%ibcx_qx = dm_src%ibcx_qx
     domain_tgt%ibcy_qy = dm_src%ibcy_qy
     domain_tgt%ibcz_qz = dm_src%ibcz_qz
+    domain_tgt%is_thermo = dm_src%is_thermo
     call Buildup_geometry_mesh_info(domain_tgt)
     call initialise_domain_decomposition(domain_tgt)
     ! allocate variables
