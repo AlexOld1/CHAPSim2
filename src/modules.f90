@@ -905,6 +905,7 @@ module io_files_mod
   character(6) :: dir_visu='2_visu'
   character(9) :: dir_moni='3_monitor'
   character(9) :: dir_chkp='4_check'
+  character(11) :: dir_dtbs='../database'
   public :: create_directory
 
   interface operator( .f. )

@@ -38,7 +38,34 @@ contains
     if(.not.file_exists(data_flname_path)) &
     call Print_error_msg("The file "//trim(dir_data)//trim(data_flname_path)//" does not exist.")
 
-    if(nrank == 0) call Print_debug_inline_msg("Reading "//trim(dir_data)//"/"//trim(data_flname_path))
+    if(nrank == 0) call Print_debug_inline_msg("Reading "//trim(data_flname_path))
+
+    call decomp_2d_read_one(IPENCIL(1), var, trim(data_flname_path), &
+          opt_decomp=dtmp, &
+          opt_reduce_prec=.false.)
+
+    return
+  end subroutine
+!==========================================================================================================
+!==========================================================================================================
+  subroutine read_one_3d_dtbs_array(var, keyword, idom, iter, dtmp)
+    implicit none
+    integer, intent(in) :: idom
+    character(*), intent(in) :: keyword
+    integer, intent(in) :: iter
+    type(DECOMP_INFO), intent(in) :: dtmp
+    real(WP), dimension(:, :, :), intent(out) :: var( dtmp%xsz(1), &
+                                                      dtmp%xsz(2), &
+                                                      dtmp%xsz(3))
+    character(64):: data_flname_path
+
+    call generate_pathfile_name(data_flname_path, idom, trim(keyword), dir_dtbs, 'bin', iter)
+    if(.not.file_exists(data_flname_path)) &
+    call generate_pathfile_name(data_flname_path, idom, trim(keyword), dir_data, 'bin', iter)
+    if(.not.file_exists(data_flname_path)) &
+    call Print_error_msg("The file "//trim(dir_dtbs)//trim(data_flname_path)//" does not exist.")
+
+    if(nrank == 0) call Print_debug_inline_msg("Reading "//trim(data_flname_path))
 
     call decomp_2d_read_one(IPENCIL(1), var, trim(data_flname_path), &
           opt_decomp=dtmp, &

@@ -482,12 +482,12 @@ contains
 
       if(nrank == 0) call Print_debug_mid_msg("Read inlet database at iteration "&
         //trim(int2str(iter))//'/'//trim(int2str(niter)))
-      call read_one_3d_array(dm%fbcx_qx_inl1, 'outlet1_qx', dm%idom, niter, dm%dxcc)
-      call read_one_3d_array(dm%fbcx_qx_inl2, 'outlet2_qx', dm%idom, niter, dm%dxcc)
-      call read_one_3d_array(dm%fbcx_qy_inl1, 'outlet1_qy', dm%idom, niter, dm%dxpc)
-      call read_one_3d_array(dm%fbcx_qy_inl2, 'outlet2_qy', dm%idom, niter, dm%dxpc)
-      call read_one_3d_array(dm%fbcx_qz_inl1, 'outlet1_qz', dm%idom, niter, dm%dxcp)
-      call read_one_3d_array(dm%fbcx_qz_inl2, 'outlet2_qz', dm%idom, niter, dm%dxcp)
+      call read_one_3d_dtbs_array(dm%fbcx_qx_inl1, 'outlet1_qx', dm%idom, niter, dm%dxcc)
+      call read_one_3d_dtbs_array(dm%fbcx_qx_inl2, 'outlet2_qx', dm%idom, niter, dm%dxcc)
+      call read_one_3d_dtbs_array(dm%fbcx_qy_inl1, 'outlet1_qy', dm%idom, niter, dm%dxpc)
+      call read_one_3d_dtbs_array(dm%fbcx_qy_inl2, 'outlet2_qy', dm%idom, niter, dm%dxpc)
+      call read_one_3d_dtbs_array(dm%fbcx_qz_inl1, 'outlet1_qz', dm%idom, niter, dm%dxcp)
+      call read_one_3d_dtbs_array(dm%fbcx_qz_inl2, 'outlet2_qz', dm%idom, niter, dm%dxcp)
 
       !call read_one_3d_array(dm%fbcx_pr_inl1, 'outlet1_pr', dm%idom, niter, dm%dxcc)
       !call read_one_3d_array(dm%fbcx_pr_inl2, 'outlet2_pr', dm%idom, niter, dm%dxcc)
