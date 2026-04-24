@@ -1022,10 +1022,10 @@ contains
       if(domain(1)%is_periodic(1)) &
       thermo(1)%thermo_buffer_layer(:) = ZERO
     end if
-    if((.not. domain(1)%is_periodic(2)) .and. is_any_energyeq) then
-      ! check! if not skip, mass error is 1e-5.
-      domain(:)%fft_skip_c2c(2) = .true.
-    end if
+    ! if((.not. domain(1)%is_periodic(2)) .and. is_any_energyeq) then
+    !   ! check! if not skip, mass error is 1e-5.
+    !   domain(:)%fft_skip_c2c(2) = .true.
+    ! end if
     if(domain(1)%icoordinate == ICYLINDRICAL) then
       domain(:)%fft_skip_c2c(2) = .true.
     end if
