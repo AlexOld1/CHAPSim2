@@ -1001,10 +1001,10 @@ contains
     if(is_any_energyeq) then
       do i = 1, nxdomain
         thermo(i)%is_rhoh_compensated = .false.
-        if(domain(i)%ibcy_nominal(1, 5) /= IBC_DIRICHLET .or. &
-           domain(i)%ibcy_nominal(2, 5) /= IBC_DIRICHLET) then
-           thermo(i)%inittype = INIT_GVCONST
-        end if
+        !if(domain(i)%ibcy_nominal(1, 5) /= IBC_DIRICHLET .or. &
+        !   domain(i)%ibcy_nominal(2, 5) /= IBC_DIRICHLET) then
+        !   thermo(i)%inittype = INIT_GVCONST
+        !end if
         if(domain(i)%ibcx_nominal(1, 1) == IBC_PERIODIC .and. &
            domain(i)%ibcx_nominal(2, 1) == IBC_PERIODIC) then 
            if(domain(i)%ibcy_nominal(1, 5) == IBC_NEUMANN .or. &
