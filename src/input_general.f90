@@ -19,13 +19,18 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !==========================================================================================================
-!> \file input_general.f90
-!> \brief Reading the input parameters from the given file.
-!> \author Wei Wang wei.wang@stfc.ac.uk
-!> \date 11-05-2022, checked.
+!> Source file input_general.f90.
+!> Reading the input parameters from the given file.
+!> Author: Wei Wang wei.wang@stfc.ac.uk
+!> Date: 11-05-2022, checked.
 !==========================================================================================================
+!> Small input-parsing utility helpers.
 module util_mod
 contains
+    !> Convert a character string to an integer and return the I/O status.
+    !> - str (in): Input string.
+    !> - ioerr (out): Fortran read status.
+    !> Return: Parsed integer value when conversion succeeds.
     function int_from_string(str, ioerr)
         character(len=*), intent(in) :: str
         integer, intent(out) :: ioerr
@@ -35,9 +40,15 @@ contains
     end function int_from_string
 end module util_mod
 !==========================================================================================================
+!> Read and validate the main CHAPSim input file.
+!>
+!> This module owns the user-facing `input_chapsim.ini` interpretation: process
+!> switches, geometry, mesh, flow, thermal, MHD, boundary-condition, scheme, I/O,
+!> and statistics settings. It also prints readable names for selected integer
+!> IDs so run logs are easier to audit.
 module input_general_mod
-  use print_msg_mod
   use parameters_constant_mod
+  use print_msg_mod
   implicit none
 
   logical :: is_prerun, is_postprocess
@@ -58,9 +69,9 @@ contains
     character(72) :: str
 
     select case(icase)
-    case ( ICASE_DUCT) 
+    case ( ICASE_DUCT)
       str = 'ICASE_DUCT'
-    case ( ICASE_OTHERS) 
+    case ( ICASE_OTHERS)
       str = 'ICASE_OTHERS'
     case ( ICASE_CHANNEL )
       str = 'Channel flow'
@@ -89,7 +100,7 @@ contains
     character(72) :: str
 
     select case(ics)
-    case ( ICARTESIAN) 
+    case ( ICARTESIAN)
       str = 'Cartesian coordinate system'
     case ( ICYLINDRICAL )
       str = 'Cylindrical coordinate system'
@@ -106,7 +117,7 @@ contains
     character(72) :: str
 
     select case(ist)
-    case ( ISTRET_NO) 
+    case ( ISTRET_NO)
       str = 'Uniform mesh without stretching'
     case ( ISTRET_CENTRE)
       str = 'Mesh clusted towards centre of y-domain'
@@ -129,7 +140,7 @@ contains
     character(72) :: str
 
     select case(ist)
-    case ( MSTRET_3FMD) 
+    case ( MSTRET_3FMD)
       str = 'Stretched mesh has only 3 Fourier modes. Suitable for 3-D FFT.'
     case ( MSTRET_TANH)
       str = 'Stretched mesh follows tanh.'
@@ -148,7 +159,7 @@ contains
     character(72) :: str
 
     select case(ist)
-    case ( FFT_2DECOMP_3DFFT) 
+    case ( FFT_2DECOMP_3DFFT)
       str = 'FFT using 2DECOMP&FFT'
     case ( FFT_FISHPACK_2DFFT)
       str = 'FFT using Fishpack FFT'
@@ -165,7 +176,7 @@ contains
     character(72) :: str
 
     select case(iacc)
-    case ( IACCU_CD2) 
+    case ( IACCU_CD2)
       str = '2nd order Centrail Difference'
     case ( IACCU_CD4)
       str = '4th order Central Difference'
@@ -186,7 +197,7 @@ contains
     character(72) :: str
 
     select case(irst)
-    case ( INIT_RESTART) 
+    case ( INIT_RESTART)
       str = 'Initialised from restart'
     case ( INIT_RANDOM)
       str = 'Initialised from random numbers'
@@ -213,7 +224,7 @@ contains
     character(72) :: str
 
     select case(ifl)
-    case ( ISCP_WATER) 
+    case ( ISCP_WATER)
       str = 'Supercritical water'
     case ( ISCP_CO2)
       str = 'Supercritical CO2'
@@ -246,7 +257,7 @@ contains
     character(72) :: str
 
     select case(ifl)
-    case ( IDRVF_NO) 
+    case ( IDRVF_NO)
       str = 'no external driven force'
     case ( IDRVF_X_MASSFLUX)
       str = 'constant mass flux driven in x-direction'
@@ -268,27 +279,32 @@ contains
     return
   end function
 !==========================================================================================================
-!> \brief Reading the input parameters from the given file.     
+!> Reading the input parameters from the given file.
 !! Scope:  mpi    called-freq    xdomain
 !!         all    once           all
 !----------------------------------------------------------------------------------------------------------
 ! Arguments
 !----------------------------------------------------------------------------------------------------------
-!  mode           name          role                                           
+!  mode           name          role
 !----------------------------------------------------------------------------------------------------------
-!> \param[in]     none          NA
-!> \param[out]    none          NA
+!> - none (in): NA
+!> - none (out): NA
 !==========================================================================================================
+  !> Read, validate, and distribute all input parameters.
+  !>
+  !> The routine reads `input_chapsim.ini`, applies case-specific consistency
+  !> rules, updates domain/flow/thermal/MHD descriptors, and broadcasts the
+  !> interpreted configuration to all MPI ranks.
   subroutine Read_input_parameters
-    use wtformat_mod
-    use mpi_mod
-    use parameters_constant_mod
-    use vars_df_mod
-    use thermo_info_mod
     use boundary_conditions_mod
     use code_performance_mod
     use EvenOdd_mod
+    use mpi_mod
+    use parameters_constant_mod
+    use thermo_info_mod
     use util_mod
+    use vars_df_mod
+    use wtformat_mod
     implicit none
     character(len = 18) :: flinput = 'input_chapsim.ini'
     integer, parameter :: IOMSG_LEN = 200
@@ -305,12 +321,12 @@ contains
     integer :: i, j, m, n, D, S
     logical :: is_tmp
     logical :: is_any_energyeq
-    
+
     if(nrank == 0) then
       call Print_debug_start_msg("CHAPSim2.0 Starts ...")
       write (*, wrtfmt1i) 'The precision is REAL * ', WP
     end if
-    ! default 
+    ! default
     is_any_energyeq = .false.
     is_single_RK_projection = .false.
     is_damping_drhodt = .false.
@@ -335,7 +351,7 @@ contains
     !----------------------------------------------------------------------------------------------------------
     ! reading input
     !----------------------------------------------------------------------------------------------------------
-    do 
+    do
       !----------------------------------------------------------------------------------------------------------
       ! reading headings/comments
       !----------------------------------------------------------------------------------------------------------
@@ -358,7 +374,7 @@ contains
         if(nrank == 0) then
           write (*, wrtfmt1l) 'is_prerun :', is_prerun
           write (*, wrtfmt1l) 'is_postprocess :', is_postprocess
-        end if 
+        end if
       !----------------------------------------------------------------------------------------------------------
       ! [decomposition]
       !----------------------------------------------------------------------------------------------------------
@@ -436,7 +452,7 @@ contains
             domain(i)%lzz = TWOPI
             domain(i)%lyt = TWOPI
             domain(i)%lyb = ZERO
-          else 
+          else
             ! do nothing...
           end if
           !----------------------------------------------------------------------------------------------------------
@@ -446,12 +462,12 @@ contains
             domain(i)%icoordinate = ICYLINDRICAL
           else if (domain(i)%icase == ICASE_ANNULAR) then
             domain(i)%icoordinate = ICYLINDRICAL
-          else 
+          else
             domain(i)%icoordinate = ICARTESIAN
           end if
           domain(i)%fft_skip_c2c(:) = .false.
         end do
-        
+
         if(nrank == 0) then
 
           do i = 1, nxdomain
@@ -464,9 +480,9 @@ contains
             write (*, wrtfmt1r) 'scaled length in z-direction :', domain(i)%lzz
           end do
         end if
-        
+
       !----------------------------------------------------------------------------------------------------------
-      ! [boundary] 
+      ! [boundary]
       !----------------------------------------------------------------------------------------------------------
       else if ( secname(1:slen) == '[bc]' ) then
 
@@ -491,7 +507,7 @@ contains
         read(inputUnit, *, iostat = ioerr) varname, domain(1)%ibcz_nominal(1:2, 5), domain(1)%fbcz_const(1:2, 5) ! dimensional
 
         read(inputUnit, *, iostat = ioerr) varname, flow(1 : nxdomain)%idriven
-        read(inputUnit, *, iostat = ioerr) varname, flow(1 : nxdomain)%drvfc   
+        read(inputUnit, *, iostat = ioerr) varname, flow(1 : nxdomain)%drvfc
 
         do i = 2, nxdomain
           domain(i)%ibcy_nominal(:, :) = domain(1)%ibcy_nominal(:, :)
@@ -529,6 +545,7 @@ contains
           if(domain(i)%ibcx_nominal(1, 1) == IBC_DATABASE) then
             domain(i)%ibcx_nominal(1, 2:3) = IBC_DATABASE
             domain(i)%ibcx_nominal(1, 4) = IBC_NEUMANN
+            !domain(i)%ibcx_nominal(1, 5) = IBC_DIRICHLET
           end if
           !if(domain(i)%ibcx_nominal(2, 1) == IBC_CONVECTIVE) then
           !  domain(i)%ibcx_nominal(2, 2:3) = IBC_CONVECTIVE
@@ -551,7 +568,7 @@ contains
             if(domain(i)%ibcx_nominal(2, m) == IBC_CONVECTIVE) domain(i)%is_conv_outlet(1) = .true.
             if(domain(i)%ibcy_nominal(2, m) == IBC_CONVECTIVE) call Print_error_msg(" Convective Outlet in Y direction is not supported.")
             if(domain(i)%ibcz_nominal(2, m) == IBC_CONVECTIVE) domain(i)%is_conv_outlet(3) = .true.
-          end do 
+          end do
         end do
 
         do i = 1, nxdomain
@@ -560,14 +577,14 @@ contains
              domain(i)%icase /= ICASE_PIPE ) then
             flow(i)%idriven = IDRVF_NO
           end if
-          
+
           if(domain(i)%ibcx_nominal(1, 1) /= IBC_PERIODIC .or. &
-             domain(i)%ibcx_nominal(2, 1) /= IBC_PERIODIC) then 
+             domain(i)%ibcx_nominal(2, 1) /= IBC_PERIODIC) then
             flow(i)%idriven = IDRVF_NO
           end if
 
           if(domain(i)%ibcx_nominal(1, 1) == IBC_PERIODIC .or. &
-             domain(i)%ibcx_nominal(2, 1) == IBC_PERIODIC) then 
+             domain(i)%ibcx_nominal(2, 1) == IBC_PERIODIC) then
             if(flow(i)%idriven == IDRVF_NO) then
               if(nrank==0) &
               call Print_warning_msg("Check if a flow driven force is required for periodic flow.")
@@ -581,12 +598,12 @@ contains
             if(flow(i)%idriven /= IDRVF_NO .and. &
                flow(i)%idriven /= IDRVF_X_MASSFLUX .and. &
                flow(i)%idriven /= IDRVF_Z_MASSFLUX) then
-              write (*, wrtfmt1r) 'flow driven force(cf):', flow(i)%drvfc        
+              write (*, wrtfmt1r) 'flow driven force(cf):', flow(i)%drvfc
             end if
           end do
         end if
       !----------------------------------------------------------------------------------------------------------
-      ! [mesh] 
+      ! [mesh]
       !----------------------------------------------------------------------------------------------------------
       else if ( secname(1:slen) == '[mesh]' ) then
         read(inputUnit, *, iostat = ioerr) varname, domain(1:nxdomain)%nc(1)
@@ -613,13 +630,13 @@ contains
           !----------------------------------------------------------------------------------------------------------
           domain(i)%is_stretching(:) = .false.
           if(domain(i)%istret /= ISTRET_NO) domain(i)%is_stretching(2) = .true.
-          
+
           if (domain(i)%icase == ICASE_CHANNEL .and. &
               domain(i)%istret /= ISTRET_2SIDES .and. &
               domain(i)%istret /= ISTRET_NO ) then
 
             if(nrank == 0) call Print_warning_msg ("Grids are neither uniform nor two-side clustered.")
-          
+
           else if (domain(i)%icase == ICASE_PIPE .and. &
                    domain(i)%istret /= ISTRET_TOP) then
 
@@ -638,7 +655,7 @@ contains
             if(domain(i)%istret /= ISTRET_NO .and. nrank == 0) &
             call Print_warning_msg ("Grids are clustered.")
 
-          else 
+          else
             ! do nothing...
           end if
         end do
@@ -673,7 +690,7 @@ contains
         ! some schemes are still testing, check >>>
         if(domain(1)%icoordinate == ICYLINDRICAL) then
           domain(1)%iAccuracy = IACCU_CD2
-        end if ! 
+        end if !
 
         if(domain(1)%icase == ICASE_CHANNEL) then
           if (domain(1)%iAccuracy == IACCU_CP4 .or.  &
@@ -724,7 +741,7 @@ contains
           flow(i)%init_velo3d(1:3) = flow(1)%init_velo3d(1:3)
           !if(flow(i)%inittype == INIT_RESTART) flow(i)%reninit = flow(i)%ren
           ! if(domain(i)%ibcx_nominal(1, 1) /= IBC_PERIODIC .or. &
-          !   domain(i)%ibcx_nominal(2, 1) /= IBC_PERIODIC) then 
+          !   domain(i)%ibcx_nominal(2, 1) /= IBC_PERIODIC) then
           !   flow(i)%reninit = flow(i)%ren
           ! end if
         end do
@@ -738,7 +755,7 @@ contains
               write (*, wrtfmt1i) 'restarting from :', flow(i)%iterfrom
             end if
             if(flow(i)%inittype == INIT_GVCONST) then
-            write (*, wrtfmt3r) 'initial velocity u, v, w :', flow(i)%init_velo3d(1:3)
+              write (*, wrtfmt3r) 'initial velocity u, v, w :', flow(i)%init_velo3d(1:3)
             end if
             write (*, wrtfmt1r) 'Initial velocity influction level :', flow(i)%noiselevel
             write (*, wrtfmt1r) 'Initial Reynolds No. :', flow(i)%reninit
@@ -747,23 +764,23 @@ contains
           end do
         end if
       !----------------------------------------------------------------------------------------------------------
-      ! [thermo] 
+      ! [thermo]
       !----------------------------------------------------------------------------------------------------------
-      else if ( secname(1:slen) == '[thermo]' )  then 
+      else if ( secname(1:slen) == '[thermo]' )  then
         read(inputUnit, *, iostat = ioerr) varname, domain(1 : nxdomain)%is_thermo
         read(inputUnit, *, iostat = ioerr) varname, domain(1 : nxdomain)%icht
         read(inputUnit, *, iostat = ioerr) varname,   flow(1 : nxdomain)%igravity
 
         if(ANY(domain(:)%is_thermo)) is_any_energyeq = .true.
         if(is_any_energyeq) allocate( thermo(nxdomain) )
-        
+
         read(inputUnit, *, iostat = ioerr) varname, itmp
         if(is_any_energyeq) thermo(1 : nxdomain)%ifluid = itmp
         read(inputUnit, *, iostat = ioerr) varname, rtmp
         if(is_any_energyeq) thermo(1 : nxdomain)%ref_l0 = rtmp
         read(inputUnit, *, iostat = ioerr) varname, rtmp
         if(is_any_energyeq) thermo(1 : nxdomain)%ref_T0 = rtmp
-        
+
         read(inputUnit, *, iostat = ioerr) varname, itmp
         if(is_any_energyeq) thermo(1 : nxdomain)%inittype  = itmp
         read(inputUnit, *, iostat = ioerr) varname, itmp
@@ -777,6 +794,12 @@ contains
         if(is_any_energyeq) thermo(1 : nxdomain)%is_use_qw_ramp = is_tmp
         if(is_any_energyeq) thermo(1 : nxdomain)%istt_qw_ramp = i
         if(is_any_energyeq) thermo(1 : nxdomain)%iend_qw_ramp = j
+
+        do i = 1, nxdomain
+          if( domain(i)%ibcx_nominal(1, 5) == IBC_DIRICHLET ) then
+            domain(i)%fbcx_const(1, 5) = thermo(i)%init_T0
+          end if
+        end do
 
         if(is_any_energyeq .and. nrank == 0) then
           do i = 1, nxdomain
@@ -792,7 +815,7 @@ contains
               write (*, wrtfmt1i) 'restarting from :', thermo(i)%iterfrom
             end if
             if(thermo(i)%inittype == INIT_GVCONST) then
-            write (*, wrtfmt1r) 'initial temperature (K) :', thermo(i)%init_T0
+              write (*, wrtfmt1r) 'initial temperature (K) :', thermo(i)%init_T0
             end if
             write (*, wrtfmt2r) 'inlet  thermal buffer length (lx/L0):', thermo(i)%thermo_buffer_layer(1)
             write (*, wrtfmt2r) 'outlet thermal buffer length (lx/L0):', thermo(i)%thermo_buffer_layer(2)
@@ -800,15 +823,19 @@ contains
             if(thermo(i)%is_use_qw_ramp) then
               write (*, wrtfmt1i) 'b.c. qw ramp starts from :', thermo(i)%istt_qw_ramp
               write (*, wrtfmt1i) 'b.c. qw ramp ends at :', thermo(i)%iend_qw_ramp
-            end if 
+            end if
+            if(thermo(i)%thermo_buffer_layer(1) > MINP .and. &
+               domain(i)%ibcy_nominal(1, 5)==IBC_DIRICHLET ) then
+              call Print_warning_msg("A buffer layer is not recommanded for this configuration.")
+            end if
           end do
         else if(nrank == 0) then
          call Print_note_msg ('Thermal field is not considered. ')
         end if
       !----------------------------------------------------------------------------------------------------------
-      ! [mhd] 
+      ! [mhd]
       !----------------------------------------------------------------------------------------------------------
-      else if ( secname(1:slen) == '[mhd]' )  then 
+      else if ( secname(1:slen) == '[mhd]' )  then
         read(inputUnit, *, iostat = ioerr) varname, domain(1:nxdomain)%is_mhd
         if(domain(1)%is_mhd) then
           allocate (mhd(nxdomain))
@@ -898,13 +925,13 @@ contains
           itmp = domain(1)%ndbstart - 1 + ((domain(1)%ndbend - domain(1)%ndbstart + 1) / domain(1)%ndbfre) * domain(1)%ndbfre
           domain(1)%ndbend =min(domain(1)%ndbend, itmp)
         end if
-        
+
         domain(1)%visu_nskip(1:3) = 1 ! This is a temporary solution to wait for features from 2decomp lib.
         do i = 1, nxdomain
           if(domain(1)%ndbfre/=0) &
           domain(:)%ndbend = (domain(1)%ndbend - domain(1)%ndbstart + 1)/domain(1)%ndbfre * domain(1)%ndbfre + domain(1)%ndbstart - 1
           domain(i)%visu_nskip(1:3) = domain(1)%visu_nskip(1:3)
-          domain(i)%stat_nskip(1:3) = domain(1)%stat_nskip(1:3) 
+          domain(i)%stat_nskip(1:3) = domain(1)%stat_nskip(1:3)
           if(domain(i)%is_stretching(2)) domain(i)%visu_nskip(2) = 1
           if(domain(i)%is_stretching(2)) domain(i)%stat_nskip(2) = 1
           !
@@ -959,7 +986,7 @@ contains
             allocate( domain(i)%probexyz(3, itmp))
             !if( nrank == 0) !write (*, wrtfmt1i) '------For the domain-x------ ', i
             do j = 1, domain(i)%proben
-              read(inputUnit, *, iostat = ioerr) varname, domain(i)%probexyz(1:3, j) 
+              read(inputUnit, *, iostat = ioerr) varname, domain(i)%probexyz(1:3, j)
               if(domain(i)%probexyz(1, j) > domain(i)%lxx) then
                 call Print_warning_msg('probed points x > lx_max, adjusted.')
                 domain(i)%probexyz(1, j) = domain(i)%lxx / real(domain(i)%proben + 1, WP) * real(j, WP)
@@ -972,8 +999,8 @@ contains
                 call Print_warning_msg('probed points z > lz_max, adjusted.')
                 domain(i)%probexyz(3, j) = domain(i)%lzz / real(domain(i)%proben + 1, WP) * real(j, WP)
               end if
-              if( nrank == 0) write (*, wrtfmt3r) 'probed points x, y, z :', domain(i)%probexyz(1:3, j) 
-            end do 
+              if( nrank == 0) write (*, wrtfmt3r) 'probed points x, y, z :', domain(i)%probexyz(1:3, j)
+            end do
           end if
         end do
       else
@@ -993,7 +1020,7 @@ contains
     !----------------------------------------------------------------------------------------------------------
     do i = 1, nxdomain
       if(domain(i)%ibcx_nominal(1, 1) /= IBC_PERIODIC .or. &
-         domain(i)%ibcx_nominal(2, 1) /= IBC_PERIODIC) then 
+         domain(i)%ibcx_nominal(2, 1) /= IBC_PERIODIC) then
         flow(i)%reninit = flow(i)%ren
       end if
     end do
@@ -1001,12 +1028,13 @@ contains
     if(is_any_energyeq) then
       do i = 1, nxdomain
         thermo(i)%is_rhoh_compensated = .false.
-        !if(domain(i)%ibcy_nominal(1, 5) /= IBC_DIRICHLET .or. &
-        !   domain(i)%ibcy_nominal(2, 5) /= IBC_DIRICHLET) then
-        !   thermo(i)%inittype = INIT_GVCONST
-        !end if
+        if(thermo(i)%inittype /= INIT_RESTART .and. &
+           (domain(i)%ibcy_nominal(1, 5) /= IBC_DIRICHLET .or. &
+            domain(i)%ibcy_nominal(2, 5) /= IBC_DIRICHLET)) then
+           thermo(i)%inittype = INIT_GVCONST
+        end if
         if(domain(i)%ibcx_nominal(1, 1) == IBC_PERIODIC .and. &
-           domain(i)%ibcx_nominal(2, 1) == IBC_PERIODIC) then 
+           domain(i)%ibcx_nominal(2, 1) == IBC_PERIODIC) then
            if(domain(i)%ibcy_nominal(1, 5) == IBC_NEUMANN .or. &
               domain(i)%ibcy_nominal(2, 5) == IBC_NEUMANN) then
               thermo(i)%is_rhoh_compensated = .true.
@@ -1014,7 +1042,7 @@ contains
         end if
       end do
     end if
-    
+
     if(domain(1)%is_periodic(1)) then
       domain(1)%outlet_sponge_layer(1:2) = ZERO
     end if
@@ -1065,9 +1093,9 @@ contains
       end if
       call config_calc_basic_ibc(domain(i))
       call config_calc_eqs_ibc(domain(i))
-    end do 
+    end do
     !----------------------------------------------------------------------------------------------------------
-    ! set up constant for time step marching 
+    ! set up constant for time step marching
     !----------------------------------------------------------------------------------------------------------
     do i = 1, nxdomain
 
@@ -1078,46 +1106,46 @@ contains
       !option 2: to set up pressure treatment, for O(dt^2)
       !domain(i)%sigma1p = ONE
       !domain(i)%sigma2p = HALF
-  
+
       !option 3: to set up pressure treatment, for O(dt)
       domain(i)%sigma1p = ONE
       domain(i)%sigma2p = ONE
-  
+
       if(domain(i)%iTimeScheme == ITIME_RK3     .or. &
          domain(i)%iTimeScheme == ITIME_RK3_CN) then
-        
+
         domain(i)%nsubitr = 3
         domain(i)%tGamma(0) = ONE
         domain(i)%tGamma(1) = EIGHT / FIFTEEN
         domain(i)%tGamma(2) = FIVE / TWELVE
         domain(i)%tGamma(3) = THREE * QUARTER
-  
+
         domain(i)%tZeta (0) = ZERO
         domain(i)%tZeta (1) = ZERO
         domain(i)%tZeta (2) = - SEVENTEEN / SIXTY
         domain(i)%tZeta (3) = - FIVE / TWELVE
-  
+
       else if (domain(i)%iTimeScheme == ITIME_AB2) then !Adams-Bashforth
-  
+
         domain(i)%nsubitr = 1
         domain(i)%tGamma(0) = ONE
         domain(i)%tGamma(1) = ONEPFIVE
         domain(i)%tGamma(2) = ZERO
         domain(i)%tGamma(3) = ZERO
-  
+
         domain(i)%tZeta (0) = ZERO
         domain(i)%tZeta (1) = -HALF
         domain(i)%tZeta (2) = ZERO
         domain(i)%tZeta (3) = ZERO
-  
-      else 
-  
+
+      else
+
         domain(i)%nsubitr = 0
         domain(i)%tGamma(:) = ZERO
         domain(i)%tZeta (:) = ZERO
-  
-      end if 
-      
+
+      end if
+
       domain(i)%tAlpha(0:3) = domain(i)%tGamma(0:3) + domain(i)%tZeta(0:3)
 
     end do
@@ -1132,12 +1160,17 @@ end module
 
 !==========================================================================================================
 !==========================================================================================================
+!> Approximate pre-run estimates for DNS mesh and time-step suitability.
+!>
+!> The routines in this module provide empirical checks for wall-bounded cases,
+!> including approximate skin-friction estimates, wall-unit spacing, Hartmann
+!> layer spacing, and CFL-related time-step guidance.
 module apx_prerun_mod
-  use parameters_constant_mod
-  use math_mod
   use input_general_mod
-  use wtformat_mod
+  use math_mod
   use mpi_mod
+  use parameters_constant_mod
+  use wtformat_mod
   implicit none
 
 
@@ -1229,12 +1262,16 @@ contains
        !  the Prandtl–von Kármán equation
        call solve_Prandtl_vonKarman_eq_for_cf(cf, Re, icase)
       end if
-    else 
+    else
       cf = MAXP
     end if
     return
   end subroutine
 !==========================================================================================================
+  !> Estimate whether the current mesh is adequate for wall-bounded DNS.
+  !> - fl (in): Flow configuration.
+  !> - dm (in): Domain and mesh descriptor.
+  !> - opt_mh (in): Optional MHD configuration for Hartmann-layer checks.
   subroutine estimate_spacial_resolution(fl, dm, opt_mh)
     use udf_type_mod
     implicit none
@@ -1249,7 +1286,7 @@ contains
     real(WP) :: growth_rate1, growth_rate2
     integer  :: n_pnts_ha
     integer  :: nx_min, ny_min, nz_min
-    
+
     ! excludes non-wall bcs
     if(nrank /= 0) return
     if(dm%icase /= ICASE_PIPE .and. &
@@ -1271,7 +1308,7 @@ contains
     ! estimate Re_tau and u_tau
     rmax = ONE
     rmin = ONE
-    if(dm%icoordinate == ICYLINDRICAL) then 
+    if(dm%icoordinate == ICYLINDRICAL) then
       rmin = dm%yc(1)
       rmax = dm%yp(dm%np(2))
     end if
@@ -1295,7 +1332,7 @@ contains
     yplus3 = Re_tau * dy3
     dxplus = Re_tau * ( dm%h(1) )
     dzplus = Re_tau * ( dm%h(3) ) * rmax
-    if(dm%icoordinate == ICYLINDRICAL) then 
+    if(dm%icoordinate == ICYLINDRICAL) then
       dzplus2 = Re_tau * ( dm%h(3) ) * rmin
     end if
     !
@@ -1363,7 +1400,7 @@ contains
     write(*, '(A)')      '  Streamwise direction (x):'
     write(*, wrtfmt1r)   '    Δx+                            :', dxplus
     write(*, '(A,F6.1)') '    Recommended: Δx+ ≤ ', dxplus_max
-    
+
     write(*, '(A)') ''
     write(*, '(A)')      '  Spanwise direction (z):'
     write(*, wrtfmt1r)   '    Δz+ (at outer wall)            :', dzplus
@@ -1377,12 +1414,12 @@ contains
     write(*, '(A)') '  Current mesh:'
     write(*, wrtfmt3i) '    Grid points (Nx, Ny, Nz)      :', dm%nc(1), dm%nc(2), dm%nc(3)
     write(*, wrtfmt1il)'    Total cells                    :', dm%nc(1) * dm%nc(2) * dm%nc(3)
-    
+
     write(*, '(A)') ''
     write(*, '(A)') '  Recommended minimum mesh for DNS:'
     write(*, wrtfmt3i) '    Grid points (Nx, Ny, Nz)      :', nx_min, ny_min, nz_min
     write(*, wrtfmt1il)'    Total cells                    :', nx_min * ny_min * nz_min
-    
+
     ! Mesh adequacy check
     if(dm%nc(1) >= nx_min .and. dm%nc(2) >= ny_min .and. dm%nc(3) >= nz_min) then
       write(*, '(A)') '  ✓ Current mesh meets minimum DNS resolution requirements'
@@ -1392,14 +1429,17 @@ contains
       if(dm%nc(2) < ny_min) write(*, '(A,I0,A,I0)') '    Increase Ny: ', dm%nc(2), ' → ', ny_min
       if(dm%nc(3) < nz_min) write(*, '(A,I0,A,I0)') '    Increase Nz: ', dm%nc(3), ' → ', nz_min
     end if
-    
+
     write(*, '(A)') repeat('=', 80)
     write(*, '(A)') ''
 
-  return 
+  return
   end subroutine
 
 !==========================================================================================================
+  !> Estimate time-step and CFL suitability before a production run.
+  !> - fl (in): Flow configuration.
+  !> - dm (in): Domain and mesh descriptor.
   subroutine estimate_temporal_resolution(fl, dm)
     use udf_type_mod
     implicit none
@@ -1429,11 +1469,11 @@ contains
     write(*, wrtfmt1e) 'dt_max (Kolmogorov limit) :', dt_max_phy
     write(*, wrtfmt1e) 'dt_max (dt+ = 0.1) :', 0.1_WP * fl%ren/Re_tau/Re_tau
 
-    ! iteration 
-    t_flth = dm%lxx / 1.2_wp 
+    ! iteration
+    t_flth = dm%lxx / 1.2_wp
     nt_cur = ceiling(t_flth / dm%dt)
     nt_est = ceiling(t_flth / dt_min)
-    
+
     call Print_debug_mid_msg("Estimating the required time steps")
     write(*, wrtfmt1r)     'flow throught time :', t_flth
     write(*, wrtfmt1il1r)  '1-flthr iter. at the estimated dtmax   :', nt_est, dt_min

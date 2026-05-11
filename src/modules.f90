@@ -1,9 +1,9 @@
 !##############################################################################
 module mpi_mod
   !include "mpif.h"
-  use MPI
   use decomp_2d
   use decomp_2d_mpi
+  use MPI
   !use iso_fortran_env
   implicit none
   integer :: ierror
@@ -14,22 +14,22 @@ module mpi_mod
   public :: initialise_mpi
   public :: Finalise_mpi
 
-contains 
+contains
 !==========================================================================================================
-!> \brief mpi initialisation.   
+!> mpi initialisation.
 !>
 !> this initialisation is a simple one.
-!  only used before calling decomp_2d_init, 
+!  only used before calling decomp_2d_init,
 !  where there is a complicted one used for 2-d decompoistion.
 !  nrank = myid
-!  nproc = size of processor 
+!  nproc = size of processor
 !  both wil be replaced after calling decomp_2d_init
 !----------------------------------------------------------------------------------------------------------
 ! Arguments
 !______________________________________________________________________________.
 !  mode           name          role                                           !
 !______________________________________________________________________________!
-!> \param[in]     d          domain type
+!> - d (in): domain type
 !==========================================================================================================
   subroutine initialise_mpi()
     implicit none
@@ -40,7 +40,7 @@ contains
   end subroutine initialise_mpi
 !==========================================================================================================
 !==========================================================================================================
-  subroutine Finalise_mpi()  
+  subroutine Finalise_mpi()
     implicit none
     call MPI_FINALIZE(IERROR)
     return
@@ -81,13 +81,13 @@ module parameters_constant_mod
   logical, parameter :: is_IO_off = .false.         ! true for code performance evaluation without IO
   !logical, parameter :: is_strong_coupling = .true. ! true = RK(rhoh, g)); false = RK(rhoh) + RK(g)
   !logical, parameter :: is_drhodt_chain = .false.   ! false = (d1-d0)/dt; true = d(rhoh)/dt / (drhoh/drho)
-  !logical :: is_two_potential_splitting ! true = stable solver but twice fft 
+  !logical :: is_two_potential_splitting ! true = stable solver but twice fft
   logical :: is_single_RK_projection ! true = projection only at last RK sub-step, time (o(dt^3)),
   logical :: is_damping_drhodt
   logical :: is_global_mass_correction
 !----------------------------------------------------------------------------------------------------------
 ! constants
-!----------------------------------------------------------------------------------------------------------  
+!----------------------------------------------------------------------------------------------------------
   real(WP), parameter :: ZPONE       = 0.1_WP
   real(WP), parameter :: EIGHTH      = 0.125_WP
   real(WP), parameter :: ZPTWO       = 0.2_WP
@@ -158,9 +158,9 @@ module parameters_constant_mod
   real(WP), parameter :: MINP = 1.0E-16_WP
   real(WP), parameter :: MAXN = -1.0E-16_WP
 #endif
-  
 
-  real(WP), parameter :: PI          = 2.0_WP*(DASIN(1.0_WP)) !3.14159265358979323846_WP !dacos( -ONE ) 
+
+  real(WP), parameter :: PI          = 2.0_WP*(DASIN(1.0_WP)) !3.14159265358979323846_WP !dacos( -ONE )
   real(WP), parameter :: TWOPI       = TWO * PI !6.28318530717958647692_WP!TWO * dacos( -ONE )
 
   complex(mytype),parameter :: cx_one_one=cmplx(one, one, kind=mytype)
@@ -193,10 +193,10 @@ module parameters_constant_mod
                         ICASE_TGV2D   = 6, &
                         ICASE_BURGERS = 7, &
                         ICASE_ALGTEST = 8
-                        
+
 !----------------------------------------------------------------------------------------------------------
 ! flow initilisation
-!----------------------------------------------------------------------------------------------------------     
+!----------------------------------------------------------------------------------------------------------
   integer, parameter :: INIT_RESTART = 0, &
                         INIT_RANDOM  = 2, &
                         INIT_INLET   = 3, &
@@ -211,13 +211,13 @@ module parameters_constant_mod
                         ICYLINDRICAL = 2
 !----------------------------------------------------------------------------------------------------------
 ! grid stretching
-!----------------------------------------------------------------------------------------------------------               
+!----------------------------------------------------------------------------------------------------------
   integer, parameter :: ISTRET_NO     = 0, &
                         ISTRET_CENTRE = 1, &
                         ISTRET_2SIDES = 2, &
                         ISTRET_BOTTOM = 3, &
                         ISTRET_TOP    = 4, &
-                        ISTRET_INPUT  = 5               
+                        ISTRET_INPUT  = 5
 !----------------------------------------------------------------------------------------------------------
 ! time scheme
 !----------------------------------------------------------------------------------------------------------
@@ -230,7 +230,7 @@ module parameters_constant_mod
 !----------------------------------------------------------------------------------------------------------
   ! warning : Don't change below order for BC types.
   integer, parameter :: IBC_INTERIOR    = 0, & ! basic and nominal, used in operations, bulk, 2 ghost layers
-                        IBC_PERIODIC    = 1, & ! basic and nominal, used in operations 
+                        IBC_PERIODIC    = 1, & ! basic and nominal, used in operations
                         IBC_SYMMETRIC   = 2, & ! basic and nominal, used in operations
                         IBC_ASYMMETRIC  = 3, & ! basic and nominal, used in operations
                         IBC_DIRICHLET   = 4, & ! basic and nominal, used in operations
@@ -238,9 +238,9 @@ module parameters_constant_mod
                         IBC_INTRPL      = 6, & ! basic only, for all others, used in operations
                         IBC_CONVECTIVE  = 7, & ! nominal only, = IBC_DIRICHLET, dynamic fbc
                         !IBC_TURBGEN     = 8, & ! nominal only, = IBC_PERIODIC, bulk, 2 ghost layers, dynamic fbc
-                        IBC_PROFILE1D   = 9, & ! nominal only, = IBC_DIRICHLET, 
+                        IBC_PROFILE1D   = 9, & ! nominal only, = IBC_DIRICHLET,
                         IBC_DATABASE    = 10, &! nominal only, = IBC_PERIODIC, bulk, 2 ghost layers, dynamic fbc
-                        IBC_POISEUILLE  = 11, &! nominal only, = IBC_DIRICHLET, 
+                        IBC_POISEUILLE  = 11, &! nominal only, = IBC_DIRICHLET,
                         IBC_OTHERS      = 12   ! interpolation
   integer, parameter :: NBC = 5! u, v, w, p, T
   integer, parameter :: NDIM = 3
@@ -253,24 +253,24 @@ module parameters_constant_mod
                         SPACE_AVERAGE = 1
   integer, parameter :: IG2Q = -1, &
                         IQ2G = 1
-  integer, parameter :: IBLK = 1, & 
+  integer, parameter :: IBLK = 1, &
                         IBND = 2, &
                         IALL = 3
 !----------------------------------------------------------------------------------------------------------
 ! numerical accuracy
-!----------------------------------------------------------------------------------------------------------             
+!----------------------------------------------------------------------------------------------------------
   integer, parameter :: IACCU_CD2 = 1, &
                         IACCU_CD4 = 2, &
                         IACCU_CP4 = 3, &
                         IACCU_CP6 = 4
 !----------------------------------------------------------------------------------------------------------
 ! numerical scheme for viscous term
-!---------------------------------------------------------------------------------------------------------- 
+!----------------------------------------------------------------------------------------------------------
   integer, parameter :: IVIS_EXPLICIT   = 1, &
                         IVIS_SEMIMPLT   = 2
 !----------------------------------------------------------------------------------------------------------
 ! driven force in periodic flow
-!---------------------------------------------------------------------------------------------------------- 
+!----------------------------------------------------------------------------------------------------------
   integer, parameter :: IDRVF_NO         = 0, &
                         IDRVF_X_MASSFLUX = 1, &
                         IDRVF_X_TAUW     = 2, &
@@ -280,12 +280,12 @@ module parameters_constant_mod
                         IDRVF_Z_DPDZ     = 6
 !----------------------------------------------------------------------------------------------------------
 ! BC for thermal
-!---------------------------------------------------------------------------------------------------------- 
+!----------------------------------------------------------------------------------------------------------
   integer, parameter :: THERMAL_BC_CONST_T  = 0, &
                         THERMAL_BC_CONST_H  = 1
 !----------------------------------------------------------------------------------------------------------
 ! working fluid media
-!---------------------------------------------------------------------------------------------------------- 
+!----------------------------------------------------------------------------------------------------------
   integer, parameter :: ISCP_WATER      = 1, &
                         ISCP_CO2        = 2, &
                         ILIQUID_SODIUM  = 3, &
@@ -298,7 +298,7 @@ module parameters_constant_mod
                         ILIQUID_PBLI    = 10
 !----------------------------------------------------------------------------------------------------------
 ! statistics
-!---------------------------------------------------------------------------------------------------------- 
+!----------------------------------------------------------------------------------------------------------
   integer, parameter :: ISTATL0 = 0, & ! no statistics
                         ISTATL1 = 1, & ! first moment
                         ISTATL2 = 2    ! second moment
@@ -307,7 +307,7 @@ module parameters_constant_mod
                         IO_MODE_RENAME    = 2     ! rename existing file
 !----------------------------------------------------------------------------------------------------------
 ! physical property
-!---------------------------------------------------------------------------------------------------------- 
+!----------------------------------------------------------------------------------------------------------
   integer, parameter :: IPROPERTY_TABLE = 1, &
                         IPROPERTY_FUNCS = 2
 !----------------------------------------------------------------------------------------------------------
@@ -429,17 +429,17 @@ module wtformat_mod
   character(len=*), parameter :: wrtfmt2s    = '(2X, A40, A72)'
   character(len=*), parameter :: wrtfmt3s    = '(2X, A40, 2A15)'
   character(len=*), parameter :: wrtfmt1s    = '(2X, A80)'
-  
+
 
 end module wtformat_mod
 !==========================================================================================================
 module udf_type_mod
-  use parameters_constant_mod, only: NDIM, NBC, WP
   use mpi_mod
+  use parameters_constant_mod, only: NDIM, NBC, WP
   implicit none
 !----------------------------------------------------------------------------------------------------------
 !  fluid thermal property info
-!---------------------------------------------------------------------------------------------------------- 
+!----------------------------------------------------------------------------------------------------------
   type t_fluidThermoProperty
     real(WP) :: t  ! temperature
     real(WP) :: d  ! density
@@ -447,14 +447,14 @@ module udf_type_mod
     real(WP) :: k  ! thermconductivity
     real(WP) :: h  ! enthalpy
     real(WP) :: rhoh ! mass enthalpy
-    real(WP) :: cp ! specific heat capacity 
+    real(WP) :: cp ! specific heat capacity
     real(WP) :: b  ! thermal expansion
     real(WP) :: alpha ! thermal diffusivity, alpha = k / (rho * cp)
     real(WP) :: Pr ! Pr = m / (rho * alpha) = m * cp / k
   end type t_fluidThermoProperty
 !----------------------------------------------------------------------------------------------------------
-!  parameters to calculate the fluid thermal property 
-!---------------------------------------------------------------------------------------------------------- 
+!  parameters to calculate the fluid thermal property
+!----------------------------------------------------------------------------------------------------------
   type t_fluid_parameter
     character(len = 64) :: inputProperty
     integer :: ifluid
@@ -476,12 +476,12 @@ module udf_type_mod
   end type t_fluid_parameter
 !----------------------------------------------------------------------------------------------------------
 !  domain info
-!---------------------------------------------------------------------------------------------------------- 
+!----------------------------------------------------------------------------------------------------------
   type t_domain
     logical :: is_periodic(NDIM)       ! is this direction periodic bc?
     logical :: is_stretching(NDIM)      ! is this direction of stretching grids?
     logical :: is_compact_scheme     ! is compact scheme applied?
-    logical :: is_thermo             ! is thermal field considered? 
+    logical :: is_thermo             ! is thermal field considered?
     logical :: is_conv_outlet(3)
     logical :: is_record_xoutlet
     logical :: is_read_xinlet
@@ -540,7 +540,7 @@ module udf_type_mod
     real(wp) :: fbcy_const(2, NBC) ! bc values, (5 variables, 2 sides)
     real(wp) :: fbcz_const(2, NBC) ! bc values, (5 variables, 2 sides)
     real(WP) :: outlet_sponge_layer(2) ! outlet_sponge_layer(1) = length of sponge layer, outlet_sponge_layer(2) for min. Re_sponge (max. viscosity)
-    
+
     real(wp) :: lxx
     real(wp) :: lyt
     real(wp) :: lyb
@@ -575,7 +575,7 @@ module udf_type_mod
     ! damping func.
     real(wp), allocatable :: xdamping(:)
     real(wp), allocatable :: zdamping(:)
-    ! node location, mapping 
+    ! node location, mapping
     real(wp), allocatable :: yMappingpt(:, :) ! j = 1, first coefficient in first deriviation. 1/h'
                                               ! j = 2, first coefficient in second deriviation 1/h'^2
                                               ! j = 3, second coefficient in second deriviation -h"/h'^3
@@ -591,7 +591,7 @@ module udf_type_mod
     real(wp), allocatable :: rpi(:) ! reciprocal of raidus based on node point
     integer, allocatable :: ijnp_sym(:)
     integer, allocatable :: ijnc_sym(:)
-    integer, allocatable :: knc_sym(:) ! knc_sym = knp_sym 
+    integer, allocatable :: knc_sym(:) ! knc_sym = knp_sym
 
     real(wp), allocatable :: fbcx_qx(:, :, :) ! variable bc
     real(wp), allocatable :: fbcy_qx(:, :, :) ! variable bc
@@ -616,14 +616,14 @@ module udf_type_mod
     real(wp), allocatable :: fbcx_qz(:, :, :) ! variable bc
     real(wp), allocatable :: fbcy_qz(:, :, :) ! variable bc
     real(wp), allocatable :: fbcz_qz(:, :, :) ! variable bc
-    real(wp), allocatable :: fbcy_qzr(:, :, :) ! qz/r = u_theta bc at y dirction
-    real(wp), allocatable :: fbcz_qzr(:, :, :) ! qz/r = u_theta bc at z dirction
+    real(wp), allocatable :: fbcy_qzr(:, :, :) ! qz/r bc at y dirction
+    real(wp), allocatable :: fbcz_qzr(:, :, :) ! qz/r bc at z dirction
 
     real(wp), allocatable :: fbcx_gz(:, :, :) ! variable bc
     real(wp), allocatable :: fbcy_gz(:, :, :) ! variable bc
     real(wp), allocatable :: fbcz_gz(:, :, :) ! variable bc
-    !real(wp), allocatable :: fbcy_gzr(:, :, :) ! gz/r = rho * u_theta bc at y dirction
-    !real(wp), allocatable :: fbcz_gzr(:, :, :) ! gz/r = rho * u_theta bc at z dirction
+    !real(wp), allocatable :: fbcy_gzr(:, :, :) ! gz/r bc at y dirction
+    !real(wp), allocatable :: fbcz_gzr(:, :, :) ! gz/r bc at z dirction
 
     real(wp), allocatable :: fbcx_pr(:, :, :) ! variable bc
     real(wp), allocatable :: fbcy_pr(:, :, :) ! variable bc
@@ -661,7 +661,7 @@ module udf_type_mod
   end type t_domain
 !----------------------------------------------------------------------------------------------------------
 !  flow info
-!---------------------------------------------------------------------------------------------------------- 
+!----------------------------------------------------------------------------------------------------------
   type t_flow
     integer  :: idriven
     integer  :: igravity
@@ -733,7 +733,9 @@ module udf_type_mod
     real(WP), allocatable :: tavg_uu  (:, :, :, :)  ! 6  = uu, uv, uw, vv, vw, ww
     real(WP), allocatable :: tavg_uuu (:, :, :, :)  ! 10 = uuu, uuv, uuw, uvv, uvw, uww, vvv, vvw, vww, www
     real(WP), allocatable :: tavg_prdu(:, :, :, :)  ! 9  = pr * dui/dxk
-    real(WP), allocatable :: tavg_dudu(:, :, :, :)  ! 6  = dui/dxk * duj/duk (covers 45 = dui/dxj * dum/dun)
+    real(WP), allocatable :: tavg_dudx(:, :, :, :)  ! 9  = dui/dxj
+    real(WP), allocatable :: tavg_dudu(:, :, :, :)  ! storage keeps 45 slots for future full extensions
+                                                    ! current post-processing uses first 6 symmetric contracted components only
     ! du/dx * du/dx, du/dx * du/dy, du/dx * du/dz (1 2 3)
     ! du/dx * dv/dx, du/dx * dv/dy, du/dx * dv/dz (4 5 6)
     ! du/dx * dw/dz, du/dx * dw/dy, du/dx * dw/dz (7 8 9)
@@ -767,11 +769,11 @@ module udf_type_mod
     !
     real(WP), allocatable :: rre_sponge_p(:)         ! vis=1/Re_sponge at centre in sponge layer
     real(WP), allocatable :: rre_sponge_c(:)         ! vis=1/Re_sponge at node in sponge layer
-    
+
   end type t_flow
 !----------------------------------------------------------------------------------------------------------
 !  thermo info
-!---------------------------------------------------------------------------------------------------------- 
+!----------------------------------------------------------------------------------------------------------
   type t_thermo
     integer :: ifluid
     integer  :: inittype
@@ -784,7 +786,7 @@ module udf_type_mod
     integer  :: istt_qw_ramp
     integer  :: iend_qw_ramp
     real(WP) :: ref_l0  ! dim
-    real(WP) :: ref_T0  ! '0' means dimensional 
+    real(WP) :: ref_T0  ! '0' means dimensional
     real(WP) :: init_T0 ! dim
     real(WP) :: time
     real(WP) :: phy_time
@@ -812,7 +814,7 @@ module udf_type_mod
   type(t_fluid_parameter) :: fluidparam ! dimensional
 !----------------------------------------------------------------------------------------------------------
 !  mhd info
-!---------------------------------------------------------------------------------------------------------- 
+!----------------------------------------------------------------------------------------------------------
   type t_mhd
     integer  :: iterfrom
     integer  :: iteration
@@ -898,6 +900,7 @@ module vars_df_mod
 end module
 !==========================================================================================================
 module io_files_mod
+  use parameters_constant_mod, only : is_IO_off
   implicit none
   character(8) :: dir_code='0_src'
   character(9) :: dir_data='1_data'
@@ -923,6 +926,7 @@ contains
 
   subroutine create_directory
     implicit none
+    if(is_IO_off) return
     call system('mkdir -p '//dir_code)
     call system('mkdir -p '//dir_data)
     call system('mkdir -p '//dir_visu)
@@ -933,8 +937,8 @@ contains
 end module
 !==========================================================================================================
 module math_mod
-  use precision_mod
   use parameters_constant_mod
+  use precision_mod
   implicit none
 
   interface sqrt_wp
@@ -995,7 +999,7 @@ module math_mod
   end interface atan_wp
 
   public :: compute_dfdx_central2
-  
+
 contains
 
   ! abs
@@ -1008,7 +1012,7 @@ contains
   elemental function abs_dp ( r ) result (d)
   real(kind = D15P), intent(in) :: r
   real(kind = D15P) :: d
-    d = dabs ( r ) 
+    d = dabs ( r )
   end function
 
   elemental function abs_csp ( r ) result(d)
@@ -1020,7 +1024,7 @@ contains
   elemental function abs_cdp ( r ) result (d)
   COMPLEX(kind = D15P), intent(in) :: r
   real(kind = D15P) :: d
-    d = abs ( r ) 
+    d = abs ( r )
   end function
 
   ! sqrt
@@ -1033,7 +1037,7 @@ contains
   pure function sqrt_dp ( r ) result (d)
     real(kind = D15P), intent(in) :: r
     real(kind = D15P) :: d
-    d = dsqrt ( r ) 
+    d = dsqrt ( r )
   end function
 
   ! sin
@@ -1046,7 +1050,7 @@ contains
   pure function sin_dp ( r ) result (d)
     real(kind = D15P), intent(in) :: r
     real(kind = D15P) :: d
-    d = dsin ( r ) 
+    d = dsin ( r )
   end function
 
   ! cos
@@ -1059,7 +1063,7 @@ contains
   pure function cos_dp ( r ) result (d)
     real(kind = D15P), intent(in) :: r
     real(kind = D15P) :: d
-    d = dcos ( r ) 
+    d = dcos ( r )
   end function
 
   ! acos
@@ -1072,7 +1076,7 @@ contains
   pure function acos_dp ( r ) result (d)
     real(kind = D15P), intent(in) :: r
     real(kind = D15P) :: d
-    d = dacos ( r ) 
+    d = dacos ( r )
   end function
 
   ! tanh
@@ -1085,7 +1089,7 @@ contains
   pure function tanh_dp ( r ) result (d)
     real(kind = D15P), intent(in) :: r
     real(kind = D15P) :: d
-    d = dtanh ( r ) 
+    d = dtanh ( r )
   end function
 
   ! tan
@@ -1098,7 +1102,7 @@ contains
   pure function tan_dp ( r ) result (d)
     real(kind = D15P), intent(in) :: r
     real(kind = D15P) :: d
-    d = tan ( r ) 
+    d = tan ( r )
   end function
 
   ! atan
@@ -1111,7 +1115,7 @@ contains
   pure function atan_dp ( r ) result (d)
     real(kind = D15P), intent(in) :: r
     real(kind = D15P) :: d
-    d = atan ( r ) 
+    d = atan ( r )
   end function
 
   pure function rl(complexnumber) result(res)
@@ -1143,7 +1147,7 @@ contains
     use decomp_2d_constants, only: mytype
     real(mytype), intent(in) :: numerator, denominator
     real(mytype) :: res
-    
+
     if (abs_prec(denominator) > MINP) then
       res = numerator / denominator
     else
@@ -1156,11 +1160,11 @@ contains
     real(kind = WP), intent(in) :: r
     real(kind = WP) :: d
     d = ZERO
-    if (r > MINP) then  ! MINP = 1.0e-20 
+    if (r > MINP) then  ! MINP = 1.0e-20
       d = ONE
     else if (r < MAXN) then ! MAXN = -1.0e-20
       d = ZERO
-    else 
+    else
       d = HALF
     end if
   end function
@@ -1221,9 +1225,9 @@ end module typeconvert_mod
 module EvenOdd_mod
   implicit none
 contains
-  logical function is_even(number)  
+  logical function is_even(number)
     implicit none
-    integer, intent(in) :: number  
+    integer, intent(in) :: number
     ! Check if the number is even or odd
     if (mod(number, 2) == 0) then
         is_even = .true.
@@ -1235,13 +1239,13 @@ end module
 
 !==========================================================================================================
 module flatten_index_mod
- implicit none 
- 
+ implicit none
+
  interface flatten_index
    module procedure flatten_3d_to_1d
    module procedure flatten_2d_to_1d
  end interface
- 
+
 contains
 
  function flatten_3d_to_1d(i, j, k, Nx, Ny) result(n)
@@ -1249,11 +1253,11 @@ contains
    integer :: n
    n = i + Nx * (j - 1)  + Nx * Ny * (k - 1)
  end function
- 
+
  function flatten_2d_to_1d(i, j, Nx) result(n)
    integer, intent(in) :: i, j, Nx
    integer :: n
    n = i + Nx * (j - 1)
  end function
- 
+
 end module flatten_index_mod

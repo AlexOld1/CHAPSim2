@@ -1,8 +1,13 @@
-module regression_test_mod 
+!> Regression-test metric container and JSON writer.
+!>
+!> Provides the compact metric set consumed by the shell regression tests and
+!> writes rank-0 JSON files for comparison against reference values.
+module regression_test_mod
   use precision_mod, only: WP
   implicit none
   private
   !
+  !> Scalar diagnostics used by smoke and regression tests.
   type :: t_metrics
     ! mass metrics
     real(wp) :: mass_balance
@@ -23,6 +28,10 @@ module regression_test_mod
   private :: write_json_real
   public :: write_metrics_json
 contains
+  !> Write regression metrics to a JSON file on rank 0.
+  !> - filename (in): Output JSON file name.
+  !> - metrics (in): Metrics to write.
+  !> - is_thermo (in): Include thermal metrics when true.
   subroutine write_metrics_json(filename, metrics, is_thermo)
     use mpi_mod, only: nrank
     implicit none
@@ -61,7 +70,7 @@ contains
     end if
     call write_json_real(unit, 'bulk velocity uz',      metrics%bulk_velocity(3), last=is_last)
     !call write_json_real(unit, 'wall shear integral',  metrics%wall_shear_integral, last=.false.)
-    
+
     if(is_thermo) then
       ! mass flux
       call write_json_real(unit, 'bulk massflux gx',      metrics%bulk_massflux(1), last=.false.)
@@ -70,7 +79,7 @@ contains
       call write_json_real(unit, 'bulk enthalpy',         metrics%bulk_enthalpy,    last=.false.)
       call write_json_real(unit, 'bulk temperature',      metrics%bulk_temperature, last=.true.)
      !call write_json_real(unit, 'wall_heat_flux',                    metrics%wall_heat_flux,      last=.false.)
-    end if  
+    end if
     ! other
     write(unit,'(a)') '}'
     close(unit)
@@ -91,9 +100,13 @@ contains
     end if
     return
   end subroutine write_json_real
-end module 
+end module
 !==========================================================================================================
-!========================================================================================================== 
+!==========================================================================================================
+!> Monitor-history output for mass, bulk, probe, and regression diagnostics.
+!>
+!> This module writes the `3_monitor` history files used to track run health and
+!> emits regression metrics at configured checkpoints.
 module io_monitor_mod
   use precision_mod
   use print_msg_mod
@@ -110,15 +123,17 @@ module io_monitor_mod
   character(len=120), parameter :: fl_mass = "monitor_change_history"
 
   type(t_metrics),save :: metrics, metrics0
-  
+
 contains
+  !> Create monitor-history files and headers.
+  !> - dm (inout): Domain descriptor containing monitor configuration.
   subroutine write_monitor_ini(dm)
-    use typeconvert_mod
-    use wtformat_mod
-    use udf_type_mod
     use io_tools_mod
     use parameters_constant_mod
-    implicit none 
+    use typeconvert_mod
+    use udf_type_mod
+    use wtformat_mod
+    implicit none
     type(t_domain),  intent(inout) :: dm
 
     integer :: myunit
@@ -135,7 +150,7 @@ contains
 !----------------------------------------------------------------------------------------------------------
 ! create history file for total variables
 !----------------------------------------------------------------------------------------------------------
-    if(nrank == 0) then
+    if(nrank == 0 .and. (.not. is_IO_off)) then
       call generate_pathfile_name(flname, dm%idom, trim(fl_bulk), dir_moni, 'log')
       inquire(file = trim(flname), exist = exist)
       if (exist) then
@@ -147,7 +162,7 @@ contains
         write(myunit, *) "# column  1 : time"
         write(myunit, *) "# column  2 : global mass balance"
         write(myunit, *) "# column  3 : max. mass conservation (interior)"
-        write(myunit, *) "# column  4 : max. mass conservation (inlet)"  
+        write(myunit, *) "# column  4 : max. mass conservation (inlet)"
         write(myunit, *) "# column  5 : max. mass conservation (outlet)"
         write(myunit, *) "# column  6 : total kinetic energy"
         !write(myunit, *) "# column 10 : wall shear integral"
@@ -184,7 +199,7 @@ contains
     if(nrank == 0) then
       call Print_debug_inline_msg("  Probed points for monitoring ...")
     end if
-!----------------------------------------------------------------------------------------------------------    
+!----------------------------------------------------------------------------------------------------------
     allocate( dm%probe_is_in(dm%proben) )
     dm%probe_is_in(:) = .false.
 
@@ -214,7 +229,7 @@ contains
       is_z = .false.
       if( idgb(2) >= dm%dccc%xst(2) .and. idgb(2) <= dm%dccc%xen(2) ) is_y = .true.
       if( idgb(3) >= dm%dccc%xst(3) .and. idgb(3) <= dm%dccc%xen(3) ) is_z = .true.
-      if(is_y .and. is_z) then 
+      if(is_y .and. is_z) then
         dm%probe_is_in(i) = .true.
         nplc = nplc + 1
         probeid(1, nplc) = idgb(1)
@@ -226,7 +241,7 @@ contains
 
     if(nplc > 0) allocate(dm%probexid(3, nplc))
 
-    do i = 1, nplc 
+    do i = 1, nplc
       dm%probexid(1:3, i) = probeid(1:3, i)
     end do
 
@@ -247,8 +262,9 @@ contains
 !----------------------------------------------------------------------------------------------------------
 ! create probe history file for flow
 !----------------------------------------------------------------------------------------------------------
+    if (.not. is_IO_off) then
     do i = 1, dm%proben
-      if(.not. dm%probe_is_in(i)) cycle 
+      if(.not. dm%probe_is_in(i)) cycle
 
       keyword = "monitor_pt"//trim(int2str(i))//"_flow"
       call generate_pathfile_name(flname, dm%idom, keyword, dir_moni, 'dat')
@@ -261,35 +277,39 @@ contains
         write(myunit, *) "# domain-id : ", dm%idom, "pt-id : ", i
         write(myunit, *) "# probe pts location ",  dm%probexyz(1:3, i)
         if(dm%is_thermo) then
-          write(myunit, *) "# t, u, v, w, p, phi, T" ! to add more instantanous or statistics
+          write(myunit, *) "# iteration, t, u, v, w, p, phi, T" ! to add more instantanous or statistics
         else
-          write(myunit, *) "# t, u, v, w, p, phi" ! to add more instantanous or statistics
+          write(myunit, *) "# iteration, t, u, v, w, p, phi" ! to add more instantanous or statistics
         end if
         close(myunit)
       end if
     end do
+    end if
     call mpi_barrier(MPI_COMM_WORLD, ierror)
 
     if(nrank == 0) call Print_debug_end_msg()
     return
   end subroutine
 !==========================================================================================================
+  !> Append bulk-flow, mass, pressure, and optional thermal monitor values.
+  !> - fl (in): Flow state.
+  !> - dm (inout): Domain descriptor.
+  !> - tm (in): Thermal state.
   subroutine write_monitor_bulk(fl, dm, tm)
-    use typeconvert_mod
-    use parameters_constant_mod
-    use wtformat_mod
-    use udf_type_mod
+    use bc_dirichlet_mod
+    use cylindrical_rn_mod
+    use find_max_min_ave_mod
     use io_files_mod
     use io_tools_mod
-    use solver_tools_mod
     use operations
-    use find_max_min_ave_mod
-    use cylindrical_rn_mod
+    use parameters_constant_mod
     use regression_test_mod
-    use bc_dirichlet_mod
     use solver_tools_mod
     use thermo_info_mod
-    implicit none 
+    use typeconvert_mod
+    use udf_type_mod
+    use wtformat_mod
+    implicit none
 
     type(t_domain),  intent(in) :: dm
     type(t_flow), intent(inout) :: fl
@@ -364,7 +384,7 @@ contains
     if(dm%ibcx_pr(1)/=IBC_PERIODIC) then
     call Get_area_average_2d_for_fbcx(dm, dm%dccc, fl%pres, bulk_fbcx, SPACE_INTEGRAL, 'varx')
     pressure_drop = bulk_fbcx(1) - bulk_fbcx(2)
-    else 
+    else
     pressure_drop = ZERO
     end if
     !
@@ -379,7 +399,7 @@ contains
       bulk_g = ZERO
       call Get_volumetric_average_3d(dm, dm%dpcc, fl%gx, bulk_g(1), SPACE_AVERAGE, 'rho*ux')
       call Get_volumetric_average_3d(dm, dm%dccp, fl%gz, bulk_g(3), SPACE_AVERAGE, 'rho*uz')
-      ! Mass-flux-weighted enthalpy = energy 
+      ! Mass-flux-weighted enthalpy = energy
       call Get_x_1der_C2C_3D(fl%gx, accc1, dm, dm%iAccuracy, dm%ibcx_qx(:), dm%fbcx_qx)
       accc2 = accc1 * tm%hEnth
       call Get_volumetric_average_3d(dm, dm%dccc, accc2, bulk_h,  SPACE_AVERAGE, 'h')
@@ -415,7 +435,7 @@ contains
           iostat = ioerr, iomsg = iotxt)
       if(ioerr /= 0) then
         call Print_error_msg('Problem openning conservation file')
-      end if 
+      end if
       write(myunit, '(6ES16.8)') fl%time, fl%mcon(1:3), fl%tt_mass_change, dMKEdt
       close(myunit)
       ! write out history of bulk variables
@@ -424,7 +444,7 @@ contains
           iostat = ioerr, iomsg = iotxt)
       if(ioerr /= 0) then
         call Print_error_msg('Problem openning bulk file')
-      end if 
+      end if
       if(dm%is_thermo .and. present(tm)) then
         write(myunit, '(1E13.5, 15ES16.8)') fl%time, fl%tt_mass_change, fl%mcon(1:3), &
           bulk_MKE, mean_dpdx, pressure_drop, bulk_q(1:3), &
@@ -434,20 +454,24 @@ contains
           bulk_MKE, mean_dpdx, pressure_drop, bulk_q(1:3)
       end if
       close(myunit)
-    end if     
+    end if
 
     return
   end subroutine
 
 !==========================================================================================================
+  !> Write configured point-probe histories.
+  !> - fl (in): Flow state.
+  !> - dm (in): Domain descriptor containing probe locations.
+  !> - tm (in): Thermal state.
   subroutine write_monitor_probe(fl, dm, tm)
-    use typeconvert_mod
-    use parameters_constant_mod
-    use wtformat_mod
-    use udf_type_mod
     use io_files_mod
     use io_tools_mod
-    implicit none 
+    use parameters_constant_mod
+    use typeconvert_mod
+    use udf_type_mod
+    use wtformat_mod
+    implicit none
 
     type(t_domain),  intent(in) :: dm
     type(t_flow), intent(in) :: fl
@@ -488,17 +512,17 @@ contains
         iz = dm%probexid(3, nplc)
         !write(*,*) 'probe pts:', nrank, nplc, ix, iy, iz
         if(dm%is_thermo .and. present(tm)) then
-          write(myunit, '(7ES13.5)') fl%time, fl%qx(ix, iy, iz), fl%qy(ix, iy, iz), fl%qz(ix, iy, iz), &
-            fl%pres(ix, iy, iz), fl%pcor(ix, iy, iz), tm%tTemp(ix, iy, iz)
+          write(myunit, '(I12, 1X, 7ES13.5)') fl%iteration, fl%time, fl%qx(ix, iy, iz), fl%qy(ix, iy, iz), &
+            fl%qz(ix, iy, iz), fl%pres(ix, iy, iz), fl%pcor(ix, iy, iz), tm%tTemp(ix, iy, iz)
         else
-          write(myunit, '(6ES13.5)') fl%time, fl%qx(ix, iy, iz), fl%qy(ix, iy, iz), fl%qz(ix, iy, iz), &
-            fl%pres(ix, iy, iz), fl%pcor(ix, iy, iz)
+          write(myunit, '(I12, 1X, 6ES13.5)') fl%iteration, fl%time, fl%qx(ix, iy, iz), fl%qy(ix, iy, iz), &
+            fl%qz(ix, iy, iz), fl%pres(ix, iy, iz), fl%pcor(ix, iy, iz)
         end if
         close(myunit)
     end do
 
     return
-  end subroutine 
+  end subroutine
 !==========================================================================================================
 end module
 

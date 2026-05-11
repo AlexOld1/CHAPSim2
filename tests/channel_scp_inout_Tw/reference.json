@@ -1,15 +1,15 @@
 {
-  "global mass balance":  -8.88178420E-16,
-  "max. mass conservation (interior)":   6.21714052E-15,
-  "max. mass conservation (inlet)":   7.66032203E-15,
-  "max. mass conservation (outlet)":   5.32993788E-15,
-  "global pressure drop":   2.70347263E+00,
-  "mean dpdx":  -4.22417598E-02,
-  "total kinetic energy":   5.92457646E-01,
-  "bulk velocity ux":   9.99999648E-01,
-  "bulk velocity uz":   1.53176135E-03,
-  "bulk massflux gx":   9.68985460E-01,
-  "bulk massflux gz":   1.48767852E-03,
-  "bulk enthalpy":   1.47430007E-09,
-  "bulk temperature":   1.00000000E+00
+  "global mass balance":   2.66453526E-15,
+  "max. mass conservation (interior)":   7.11025883E-14,
+  "max. mass conservation (inlet)":   4.89649293E-14,
+  "max. mass conservation (outlet)":   1.06137321E-13,
+  "global pressure drop":  -7.00314422E+02,
+  "mean dpdx":   1.09424128E+01,
+  "total kinetic energy":   6.23917683E-01,
+  "bulk velocity ux":   1.03230692E+00,
+  "bulk velocity uz":   1.53176194E-03,
+  "bulk massflux gx":   9.99799600E-01,
+  "bulk massflux gz":   1.48767825E-03,
+  "bulk enthalpy":   1.02818960E-05,
+  "bulk temperature":   1.00001027E+00
 }
