@@ -570,7 +570,8 @@ contains
   subroutine read_instantaneous_xinlet(fl, dm, opt_iter)
     use io_tools_mod
     use parameters_constant_mod
-    implicit none 
+    use typeconvert_mod
+    implicit none
     type(t_flow), intent(inout) :: fl
     type(t_domain), intent(inout) :: dm
     integer, intent(in), optional :: opt_iter
