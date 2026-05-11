@@ -485,7 +485,6 @@ module udf_type_mod
     logical :: is_conv_outlet(3)
     logical :: is_record_xoutlet
     logical :: is_read_xinlet
-    logical :: is_x_inlet_initialised
     logical :: is_mhd
     logical :: fft_skip_c2c(3)
     integer :: io_mode
