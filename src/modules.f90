@@ -764,6 +764,7 @@ module udf_type_mod
     real(WP), allocatable :: tavg_fh  (:, :, :)    ! fh= rho * h
     real(WP), allocatable :: tavg_fuh (:, :, :, :) ! 3 = rho*u*h, rho*v*h, rho*w*h
     real(WP), allocatable :: tavg_fuuh(:, :, :, :) ! 6 = rho*uu*h, rho*uv*h, rho*uw*h, rho*vv*h, rho*vw*h, rho*ww*h
+    real(WP), allocatable :: tavg_Tu  (:, :, :, :) ! 3 = T * u, T * v, T * w
     ! MHD
     real(WP), allocatable :: tavg_eu  (:, :, :, :) ! 3 = phi * u, phi * v, phi * w
     !

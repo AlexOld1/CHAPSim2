@@ -812,8 +812,10 @@ contains
       if(dm%stat_level > ISTATL1) then
         allocate( fl%tavg_fuu (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 6) )
         allocate( fl%tavg_fuh (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 3) )
+        allocate( fl%tavg_Tu  (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 3) )
         fl%tavg_fuu  = ZERO
         fl%tavg_fuh  = ZERO
+        fl%tavg_Tu   = ZERO
       end if
       if(dm%stat_level > ISTATL2) then
         allocate( fl%tavg_fuuu(ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 10) )
@@ -856,6 +858,7 @@ contains
         if(dm%stat_level > ISTATL1) then
           call run_stats_loops6 (STATS_READ, fl%tavg_fuu,  't_avg_fuu',  iter, dm)
           call run_stats_loops3 (STATS_READ, fl%tavg_fuh,  't_avg_fuh',  iter, dm)
+          call run_stats_loops3 (STATS_READ, fl%tavg_Tu,   't_avg_Tu',   iter, dm)
         end if
         if(dm%stat_level > ISTATL2) then
           call run_stats_loops10(STATS_READ, fl%tavg_fuuu, 't_avg_fuuu', iter, dm)
@@ -1135,6 +1138,7 @@ contains
     if(dm%stat_level > ISTATL1) then
       call run_stats_loops6 (STATS_TAVG, fl%tavg_fuu, 't_avg_fuu', iter, dm, opt_acccn1=uccc, opt_acccn2=uccc, opt_accc0=fl%dDens)
       call run_stats_loops3 (STATS_TAVG, fl%tavg_fuh, 't_avg_fuh', iter, dm, opt_acccn1=uccc, opt_accc0=tm%hEnth*fl%dDens)
+      call run_stats_loops3 (STATS_TAVG, fl%tavg_Tu,  't_avg_Tu',  iter, dm, opt_acccn1=uccc, opt_accc0=tm%tTemp)
     end if
     if(dm%stat_level > ISTATL2) then
       call run_stats_loops10(STATS_TAVG, fl%tavg_fuuu,'t_avg_fuuu', iter, dm, opt_acccn1=uccc, opt_acccn2=uccc, opt_acccn3=uccc, opt_accc0=fl%dDens*tm%tTemp)
@@ -1298,6 +1302,7 @@ contains
     if(dm%stat_level > ISTATL1) then
       call run_stats_loops6 (STATS_WRITE, fl%tavg_fuu, 't_avg_fuu',  iter, dm)
       call run_stats_loops3 (STATS_WRITE, fl%tavg_fuh, 't_avg_fuh',  iter, dm)
+      call run_stats_loops3 (STATS_WRITE, fl%tavg_Tu,  't_avg_Tu' ,  iter, dm)
     end if
     if(dm%stat_level > ISTATL2) then
       call run_stats_loops10(STATS_WRITE, fl%tavg_fuuu,'t_avg_fuuu', iter, dm)
@@ -1413,6 +1418,7 @@ contains
       if(dm%stat_level > ISTATL1) then
         call run_stats_loops6 (STATS_VISU3, fl%tavg_fuu,  't_avg_fuu',  iter, dm, opt_visnm=trim(visuname))
         call run_stats_loops3 (STATS_VISU3, fl%tavg_fuh,  't_avg_fuh',  iter, dm, opt_visnm=trim(visuname))
+        call run_stats_loops3 (STATS_VISU3, fl%tavg_Tu,   't_avg_Tu' ,  iter, dm, opt_visnm=trim(visuname))
       end if
       if(dm%stat_level > ISTATL2) then
         call run_stats_loops10(STATS_VISU3, fl%tavg_fuuu, 't_avg_fuuu', iter, dm, opt_visnm=trim(visuname))
@@ -1458,6 +1464,8 @@ contains
         if(dm%stat_level > ISTATL1) then
           call run_stats_loops6 (STATS_VISU1, fl%tavg_fuu,  'tsp_avg_fuu',  iter, dm, opt_visnm=trim(visuname))
           call run_stats_loops3 (STATS_VISU1, fl%tavg_fuh,  'tsp_avg_fuh',  iter, dm, opt_visnm=trim(visuname))
+          call run_stats_loops3 (STATS_VISU1, fl%tavg_Tu,   'tsp_avg_Tu' ,  iter, dm, opt_visnm=trim(visuname))
+
         end if
         if(dm%stat_level > ISTATL2) then
           call run_stats_loops10(STATS_VISU1, fl%tavg_fuuu, 'tsp_avg_fuuu', iter, dm, opt_visnm=trim(visuname))
