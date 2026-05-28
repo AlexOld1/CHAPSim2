@@ -766,6 +766,7 @@ module udf_type_mod
     real(WP), allocatable :: tavg_fuuh(:, :, :, :) ! 6 = rho*uu*h, rho*uv*h, rho*uw*h, rho*vv*h, rho*vw*h, rho*ww*h
     real(WP), allocatable :: tavg_Tu  (:, :, :, :) ! 3 = T * u, T * v, T * w
     ! MHD
+    real(WP), allocatable :: tavg_ju  (:, :, :, :) ! 9 = j_i * u_j
     real(WP), allocatable :: tavg_eu  (:, :, :, :) ! 3 = phi * u, phi * v, phi * w
     !
     real(WP), allocatable :: rre_sponge_p(:)         ! vis=1/Re_sponge at centre in sponge layer

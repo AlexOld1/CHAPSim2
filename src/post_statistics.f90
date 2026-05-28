@@ -583,7 +583,7 @@ contains
     return
   end subroutine
 !==========================================================================================================
-  subroutine run_stats_loops9(mode, acccn_tavg, field_name, iter, dm, opt_acccnn1, opt_accc0, opt_visnm)
+  subroutine run_stats_loops9(mode, acccn_tavg, field_name, iter, dm, opt_acccnn1, opt_acccn1, opt_acccn2, opt_accc0, opt_visnm)
     use typeconvert_mod
     use udf_type_mod
     implicit none
@@ -592,6 +592,7 @@ contains
     character(len=*), intent(in), optional :: opt_visnm
     real(WP), dimension(:, :, :, :),    intent(inout) :: acccn_tavg
     real(WP), dimension(:, :, :, :, :), intent(in), optional :: opt_acccnn1
+    real(WP), dimension(:, :, :, :),    intent(in), optional :: opt_acccn1, opt_acccn2
     real(WP), dimension(:, :, :),       intent(in), optional :: opt_accc0
     type(t_domain), intent(in) :: dm
     integer, intent(in) :: iter
@@ -607,8 +608,13 @@ contains
         n = n + 1
         accc_tavg(:, :, :) = acccn_tavg(:, :, :, n)
         if(mode == STATS_TAVG) then
-          if (.not. present(opt_acccnn1)) call Print_error_msg("Error in run_stats_loops9.")
-          opt_accc(:, :, :) = opt_acccnn1(:, :, :, i, j)
+          if (present(opt_acccnn1)) then
+            opt_accc(:, :, :) = opt_acccnn1(:, :, :, i, j)
+          else if (present(opt_acccn1) .and. present(opt_acccn2)) then
+            opt_accc(:, :, :) = opt_acccn1(:, :, :, i) * opt_acccn2(:, :, :, j)
+          else
+            call Print_error_msg("Error in run_stats_loops9.")
+          end if
           if(present(opt_accc0)) &
           opt_accc(:, :, :) = opt_accc(:, :, :) * opt_accc0(:, :, :)
         end if
@@ -828,7 +834,9 @@ contains
     if(dm%is_mhd) then
       ! MHD statistics to be implemented
       allocate(fl%tavg_eu (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 3) )
+      allocate(fl%tavg_ju (ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 9) )
       fl%tavg_eu = ZERO
+      fl%tavg_ju = ZERO
     end if
     !
     if(fl%inittype == INIT_RESTART .and. fl%iterfrom > dm%stat_istart) then
@@ -868,6 +876,7 @@ contains
       ! MHD
       if(dm%is_mhd) then
         call run_stats_loops3 (STATS_READ, fl%tavg_eu, 't_avg_eu', iter, dm)
+        call run_stats_loops9 (STATS_READ, fl%tavg_ju, 't_avg_ju', iter, dm)
       end if
     end if
     !
@@ -1019,6 +1028,7 @@ contains
     real(WP), dimension( dm%dpcp%zsz(1), dm%dpcp%zsz(2), dm%dpcp%zsz(3) ) :: apcp_zpencil
     real(WP), dimension( dm%dcpp%zsz(1), dm%dcpp%zsz(2), dm%dcpp%zsz(3) ) :: acpp_zpencil
     real(WP), dimension( dm%dcpc%zsz(1), dm%dcpc%zsz(2), dm%dcpc%zsz(3) ) :: acpc_zpencil
+    real(WP), dimension( dm%dccc%xsz(1), dm%dccc%xsz(2), dm%dccc%xsz(3), 3 ) :: jccc
     integer :: iter
     !
     iter = fl%iteration
@@ -1110,6 +1120,24 @@ contains
     call transpose_from_z_pencil(accc_zpencil, accc_xpencil, dm%dccc, IPENCIL(1))
     dudx(:, :, :, 3, 3) = accc_xpencil(:, :, :)
     end if
+    if (dm%is_mhd) then
+    ! j1
+    apcc_xpencil = mh%jx
+    call Get_x_midp_P2C_3D(apcc_xpencil, accc_xpencil, dm, dm%iAccuracy, mh%ibcx_jx(:), mh%fbcx_jx)
+    jccc(:, :, :, 1) = accc_xpencil(:, :, :)
+    ! j2
+    acpc_xpencil = mh%jy
+    call transpose_x_to_y(acpc_xpencil, acpc_ypencil, dm%dcpc)
+    call Get_y_midp_P2C_3D(acpc_ypencil, accc_ypencil, dm, dm%iAccuracy, mh%ibcy_jy(:), mh%fbcy_jy)
+    call transpose_y_to_x(accc_ypencil, accc_xpencil, dm%dccc)
+    jccc(:, :, :, 2) = accc_xpencil(:, :, :)
+    ! j3
+    accp_xpencil = mh%jz
+    call transpose_to_z_pencil(accp_xpencil, accp_zpencil, dm%dccp, IPENCIL(1))
+    call Get_z_midp_P2C_3D(accp_zpencil, accc_zpencil, dm, dm%iAccuracy, mh%ibcz_jz(:), mh%fbcz_jz)
+    call transpose_from_z_pencil(accc_zpencil, accc_xpencil, dm%dccc, IPENCIL(1))
+    jccc(:, :, :, 3) = accc_xpencil(:, :, :)
+    end if
 !----------------------------------------------------------------------------------------------------------
 !   time averaged
 !----------------------------------------------------------------------------------------------------------
@@ -1148,7 +1176,8 @@ contains
     ! MHD
     if(dm%is_mhd) then
       call run_stats_loops3 (STATS_TAVG, fl%tavg_eu, 't_avg_eu', iter, dm, opt_acccn1=uccc, opt_accc0=mh%ep)
-    end if    !
+      call run_stats_loops9 (STATS_TAVG, fl%tavg_ju, 't_avg_ju', iter, dm, opt_acccn1=uccc, opt_acccn2=jccc)
+    end if
     return
   end subroutine
 !==========================================================================================================
@@ -1312,6 +1341,7 @@ contains
     ! MHD
     if(dm%is_mhd) then
       call run_stats_loops3 (STATS_WRITE, fl%tavg_eu, 't_avg_eu', iter, dm)
+      call run_stats_loops9 (STATS_WRITE, fl%tavg_ju, 't_avg_ju', iter, dm)
     end if
     !
     if(nrank == 0) call Print_debug_end_msg()
@@ -1428,6 +1458,7 @@ contains
     ! MHD
     if(dm%is_mhd) then
       call run_stats_loops3 (STATS_VISU3, fl%tavg_eu, 't_avg_eu', iter, dm, opt_visnm=trim(visuname))
+      call run_stats_loops9 (STATS_VISU3, fl%tavg_ju, 't_avg_ju', iter, dm, opt_visnm=trim(visuname))
     end if
     ! write xdmf footer
     call write_visu_file_end(dm, visuname, iter)
@@ -1475,6 +1506,7 @@ contains
       ! MHD
       if(dm%is_mhd) then
         call run_stats_loops3 (STATS_VISU1, fl%tavg_eu, 'tsp_avg_eu', iter, dm, opt_visnm=trim(visuname))
+        call run_stats_loops9 (STATS_VISU1, fl%tavg_ju, 'tsp_avg_ju', iter, dm, opt_visnm=trim(visuname))
       end if
       ! write xdmf footer
       if(count(dm%is_periodic(1:3)) == 1 .and. nrank == 0) &
