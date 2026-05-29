@@ -576,7 +576,7 @@ contains
     integer, intent(in), optional :: opt_iter
 
     character(64):: data_flname_path
-    integer :: iter, niter, nblock, nblocks
+    integer :: iter, niter, nblock, nblocks, read_span
 
 
     if(.not. dm%is_read_xinlet) return
@@ -595,12 +595,18 @@ contains
     ! ----------------------------------------------------------------------------
     iter = fl%iteration
     if (present(opt_iter)) iter = opt_iter
+    if (dm%ndbfre <= 0) call Print_error_msg('read_instantaneous_xinlet requires positive wrt_read_nfre.')
     ! ----------------------------------------------------------------------------
     ! Only read if current iteration is the first of the block
     ! ----------------------------------------------------------------------------
     if (mod(iter-1, dm%ndbfre)==0 .or. iter == (fl%iterfrom+1)) then
-      nblocks = (dm%ndbend - dm%ndbstart + 1) / dm%ndbfre
-      if ((dm%ndbend - dm%ndbstart + 1) > nblocks*dm%ndbfre) nblocks = nblocks + 1
+      read_span = dm%ndbend - dm%ndbstart + 1
+      if (read_span <= 0) then
+        nblocks = 1
+      else
+        nblocks = read_span / dm%ndbfre
+        if (read_span > nblocks*dm%ndbfre) nblocks = nblocks + 1
+      end if
       nblock = mod((iter - 1) / dm%ndbfre, nblocks)
       niter = dm%ndbfre * nblock
       if(nrank == 0) &
