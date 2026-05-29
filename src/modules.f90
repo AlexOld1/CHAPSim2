@@ -269,6 +269,11 @@ module parameters_constant_mod
   integer, parameter :: IVIS_EXPLICIT   = 1, &
                         IVIS_SEMIMPLT   = 2
 !----------------------------------------------------------------------------------------------------------
+! LES model
+!----------------------------------------------------------------------------------------------------------
+  integer, parameter :: ILES_NONE = 0, &
+                        ILES_WALE = 1
+!----------------------------------------------------------------------------------------------------------
 ! driven force in periodic flow
 !----------------------------------------------------------------------------------------------------------
   integer, parameter :: IDRVF_NO         = 0, &
@@ -486,13 +491,13 @@ module udf_type_mod
     logical :: is_record_xoutlet
     logical :: is_read_xinlet
     logical :: is_mhd
-    logical :: is_les
     logical :: fft_skip_c2c(3)
     integer :: io_mode
     integer :: idom                  ! domain id
     integer :: icase                 ! case id
     integer :: icoordinate           ! coordinate type
     integer :: ifft_lib
+    integer :: LES_model
     integer :: icht
     integer :: iTimeScheme
     integer :: iviscous

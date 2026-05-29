@@ -90,6 +90,9 @@ contains
     call alloc_x(fl%my_rhs0, dm%dcpc) ; fl%my_rhs0 = ZERO
     call alloc_x(fl%mz_rhs0, dm%dccp) ; fl%mz_rhs0 = ZERO
     call alloc_x(fl%drhodt,  dm%dccc) ; fl%drhodt  = ZERO
+    if(dm%LES_model /= ILES_NONE) then
+      call alloc_x(fl%tVisc, dm%dccc) ; fl%tVisc = ZERO
+    end if
 
     if(dm%is_conv_outlet(1)) then
       allocate (fl%fbcx_a0cc_rhs0(dm%dpcc%xsz(2), dm%dpcc%xsz(3))); fl%fbcx_a0cc_rhs0 = ZERO

@@ -858,6 +858,43 @@ contains
 #ifdef DEBUG_STEPS
       call Print_debug_mid_msg('mu preparation ... done.')
 #endif
+    else if(present(opt_visc)) then
+      mu_ccc_xpencil = opt_visc
+      call transpose_x_to_y(mu_ccc_xpencil, mu_ccc_ypencil, dm%dccc)
+      call transpose_y_to_z(mu_ccc_ypencil, mu_ccc_zpencil, dm%dccc)
+
+      call Get_y_midp_C2P_3D(mu_ccc_ypencil, acpc_ypencil, dm, dm%iAccuracy, dm%ibcy_pr)
+      if(dm%icase==ICASE_PIPE) then
+        call axis_mirror_fbcy(acpc_ypencil, IPENCIL(2), fbcy_mu_c4c, dm%knc_sym, dm%dcpc, is_odd = .false., &
+                              axis_mode = AXIS_RECON_M0, assign_axis_to_var = .true., nr = 0)
+      end if
+      call transpose_y_to_x(acpc_ypencil, acpc_xpencil, dm%dcpc)
+      call Get_x_midp_C2P_3D(acpc_xpencil, muixy_ppc_xpencil, dm, dm%iAccuracy, dm%ibcx_pr)
+      call transpose_x_to_y(muixy_ppc_xpencil, muixy_ppc_ypencil, dm%dppc)
+
+      call Get_x_midp_C2P_3D(mu_ccc_xpencil, apcc_xpencil, dm, dm%iAccuracy, dm%ibcx_pr)
+      call transpose_x_to_y(apcc_xpencil, apcc_ypencil, dm%dpcc)
+      call transpose_y_to_z(apcc_ypencil, apcc_zpencil, dm%dpcc)
+      call Get_z_midp_C2P_3D(apcc_zpencil, muixz_pcp_zpencil, dm, dm%iAccuracy, dm%ibcz_pr)
+      call transpose_z_to_y(muixz_pcp_zpencil, apcp_ypencil, dm%dpcp)
+      call transpose_y_to_x(apcp_ypencil, muixz_pcp_xpencil, dm%dpcp)
+
+      call transpose_y_to_z(acpc_ypencil, acpc_zpencil, dm%dcpc)
+      call Get_z_midp_C2P_3D(acpc_zpencil, muiyz_cpp_zpencil, dm, dm%iAccuracy, dm%ibcz_pr)
+      call transpose_z_to_y(muiyz_cpp_zpencil, muiyz_cpp_ypencil, dm%dcpp)
+
+      if(is_fbcx_velo_required) then
+        call extract_dirichlet_fbcx(fbcx_mu_4cc, apcc_xpencil, dm%dpcc)
+      end if
+
+      if(is_fbcy_velo_required) then
+        call extract_dirichlet_fbcy(fbcy_mu_c4c, acpc_ypencil, dm%dcpc, dm, is_reversed = .false.)
+      end if
+
+      if(is_fbcz_velo_required) then
+        call Get_z_midp_C2P_3D(mu_ccc_zpencil, muiz_ccp_zpencil, dm, dm%iAccuracy, dm%ibcz_pr)
+        call extract_dirichlet_fbcz(fbcz_mu_cc4, muiz_ccp_zpencil, dm%dccp)
+      end if
     end if
 
 !==========================================================================================================
@@ -2555,25 +2592,32 @@ contains
     !
     ! set up thermo info based on different time stepping
     ! drho/dt is updated here as it is used in balancing mass in convective outlet
+    visc = ONE
     if(dm%is_thermo) then
       dens = fl%dDens
       visc = fl%mVisc
       call Calculate_drhodt(fl, dm, isub)
     end if
 
-    dm%is_les = .true.  ! for testing purpose, to be removed later.
-
-    if (dm%is_les) then
+    select case(dm%LES_model)
+    case(ILES_NONE)
+    case(ILES_WALE)
       call calculate_les_wale(fl, dm)
-      visc = visc + fl%tVisc
-    end if
+      visc = visc + fl%ren * fl%tVisc
+    case default
+      call Print_error_msg('The required LES model is not supported.')
+    end select
 
     ! to set up convective outlet b.c.
     call compute_convective_outlet_flow(fl, dm, isub)
     ! Main Momentum RHS
     if ( .not. dm%is_thermo) then
       ! to calculate the rhs of the momenturn equation in stepping method
-      call Compute_momentum_rhs(fl, dm, isub)
+      if (dm%LES_model /= ILES_NONE) then
+        call Compute_momentum_rhs(fl, dm, isub, opt_visc = visc)
+      else
+        call Compute_momentum_rhs(fl, dm, isub)
+      end if
       ! to update intermediate (\hat{q}) or (\hat{g})
       fl%qx = fl%qx + fl%mx_rhs
       fl%qy = fl%qy + fl%my_rhs
