@@ -390,6 +390,7 @@ contains
         domain(:)%is_thermo = .false.
         domain(:)%icht = 0
         domain(:)%is_mhd = .false.
+        domain(:)%is_les = .false.
 
         do i = 1, nxdomain
           domain(i)%idom = i
@@ -863,6 +864,18 @@ contains
           end do
         else if(nrank == 0) then
          call Print_note_msg(' MHD is not considered. ')
+        end if
+      !----------------------------------------------------------------------------------------------------------
+      ! [les]
+      !----------------------------------------------------------------------------------------------------------
+      else if ( secname(1:slen) == '[les]' ) then
+        read(inputUnit, *, iostat = ioerr) varname, domain(1:nxdomain)%is_les
+        if(domain(1)%is_les .and. nrank == 0) then
+          do i = 1, nxdomain
+            write (*, wrtfmt1l) 'LES WALE model enabled?', domain(i)%is_les
+          end do
+        else if(nrank == 0) then
+          call Print_note_msg(' LES is not enabled. ')
         end if
       !----------------------------------------------------------------------------------------------------------
       ! [simcontrol]

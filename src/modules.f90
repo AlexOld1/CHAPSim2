@@ -486,6 +486,7 @@ module udf_type_mod
     logical :: is_record_xoutlet
     logical :: is_read_xinlet
     logical :: is_mhd
+    logical :: is_les
     logical :: fft_skip_c2c(3)
     integer :: io_mode
     integer :: idom                  ! domain id
@@ -705,6 +706,7 @@ module udf_type_mod
     real(WP), allocatable :: dDens(:, :, :)
     real(WP), allocatable :: drhodt(:, :, :)
     real(WP), allocatable :: mVisc(:, :, :)
+    real(WP), allocatable :: tVisc(:, :, :)
     real(WP), allocatable :: dDens0(:, :, :)
     real(WP), allocatable :: mVisc0(:, :, :)
 

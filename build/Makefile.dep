@@ -28,3 +28,4 @@
 ../src/test_algrithms.o : ../src/test_algrithms.f90 ../src/poisson_interface.o ../src/geometry.o ../src/basics_algorithms.o ../src/tools_general.o ../src/input_thermo.o ../src/tools_solver.o ../src/modules.o ../src/modules.o ../src/modules.o ../src/modules.o ../src/bc_general.o ../src/basics_operations2.o ../src/input_general.o ../src/modules.o ../src/modules.o ../src/modules.o ../src/modules.o 
 ../src/tools_general.o : ../src/tools_general.f90 ../src/modules.o ../src/modules.o ../src/modules.o ../src/modules.o ../src/modules.o ../src/modules.o ../src/modules.o ../src/modules.o 
 ../src/tools_solver.o : ../src/tools_solver.f90 ../src/tools_general.o ../src/basics_operations2.o ../src/tools_general.o ../src/modules.o ../src/modules.o ../src/modules.o ../src/modules.o ../src/input_thermo.o ../src/modules.o 
+../src/eq_les.o : ../src/eq_les.f90 ../src/modules.o ../src/tools_general.o ../src/bc_general.o ../src/basics_operations2.o
