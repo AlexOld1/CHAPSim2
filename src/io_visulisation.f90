@@ -179,7 +179,7 @@ module visualisation_mesh_mod
   implicit none
   private
   !
-  integer, save :: NMINPL(NDIM)=(/16, 8, 16/)
+  integer, save :: NMINPL(NDIM)=(/16, 52, 16/)
   integer, parameter, public :: NSLICE = 3   ! 3 slices per direction by default (quarter-ish positions)
   !
   integer, parameter, public :: Ivisu_3D   = 0, & ! visualise 3d field only
