@@ -184,7 +184,10 @@ module visualisation_mesh_mod
   !
   integer, parameter, public :: Ivisu_3D   = 0, & ! visualise 3d field only
                                 Ivisu_2D   = 1, & ! visualise 2d field (3 planes in each dir) only
-                                Ivisu_3D2D = 2    ! visualise both 3d and 2d
+                                Ivisu_3D2D = 2, & ! visualise both 3d and 2d
+                                Ivisu_4    = 3, & ! all checkpoint data in 3D and stats in time-space avg
+                                Ivisu_5    = 4    ! as Ivisu_4, but also checkpoint stats in time-space avg only
+                                                  ! (no full 3D restart t_avg; restart cannot resume the exact running avg)
   integer, save, public :: nave_plane(NDIM)
   type(DECOMP_INFO), public :: d1cc
   type(DECOMP_INFO), public :: dc1c
@@ -783,7 +786,7 @@ contains
     if (nrank /= 0) return
     !
     if(.not. present(opt_is_savg)) then
-    if(dm%visu_idim == Ivisu_3D .or. dm%visu_idim == Ivisu_3D2D) then
+    if(dm%visu_idim == Ivisu_3D .or. dm%visu_idim == Ivisu_3D2D .or. dm%visu_idim == Ivisu_4 .or. dm%visu_idim == Ivisu_5) then
       call generate_pathfile_name(xdmf_file, dm%idom, visuname, dir_visu, 'xdmf', iter)
       open(newunit=u, file=trim(xdmf_file), status='replace', action='write')
       nnode = nnd_visu(1:3)
@@ -849,7 +852,7 @@ contains
     if (nrank /= 0) return
     !
     if(.not. present(opt_is_savg)) then
-    if(dm%visu_idim == Ivisu_3D .or. dm%visu_idim == Ivisu_3D2D) then
+    if(dm%visu_idim == Ivisu_3D .or. dm%visu_idim == Ivisu_3D2D .or. dm%visu_idim == Ivisu_4 .or. dm%visu_idim == Ivisu_5) then
       call generate_pathfile_name(xdmf_file, dm%idom, visuname, dir_visu, 'xdmf', iter)
       open(newunit=u, file=trim(xdmf_file), status='old', action='write', position='append')
       call xdmf_end_grid(u)
@@ -904,7 +907,7 @@ contains
       accc = field_in
     end if
     !
-    if (dm%visu_idim == Ivisu_3D .or. dm%visu_idim == Ivisu_3D2D) then
+    if (dm%visu_idim == Ivisu_3D .or. dm%visu_idim == Ivisu_3D2D .or. dm%visu_idim == Ivisu_4 .or. dm%visu_idim == Ivisu_5) then
       call write_visu_3d_binary_and_xdmf(dm, accc, field_name, visuname, iter)
     end if
     !

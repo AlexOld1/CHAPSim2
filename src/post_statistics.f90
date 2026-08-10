@@ -765,6 +765,7 @@ contains
     use parameters_constant_mod
     use typeconvert_mod
     use udf_type_mod
+    use visualisation_mesh_mod, only: Ivisu_5
     implicit none
     type(t_domain), intent(in) :: dm
     type(t_flow),   intent(inout) :: fl
@@ -839,7 +840,7 @@ contains
       fl%tavg_ju = ZERO
     end if
     !
-    if(fl%inittype == INIT_RESTART .and. fl%iterfrom > dm%stat_istart) then
+    if(fl%inittype == INIT_RESTART .and. fl%iterfrom > dm%stat_istart .and. dm%visu_idim /= Ivisu_5) then
       if(nrank == 0) call Print_debug_inline_msg("Reading flow statistics ...")
       ! shared parameters
       if(dm%stat_level > ISTATL0) then
@@ -891,6 +892,7 @@ contains
     use io_tools_mod
     use parameters_constant_mod
     use udf_type_mod
+    use visualisation_mesh_mod, only: Ivisu_5
     implicit none
     type(t_domain), intent(in) :: dm
     type(t_thermo), intent(inout) :: tm
@@ -923,7 +925,7 @@ contains
     !allocate( tm%tavg_dTdT(ncl_stat(1, dm%idom), ncl_stat(2, dm%idom), ncl_stat(3, dm%idom), 6))
     !tm%tavg_dTdT = ZERO
     !
-    if(tm%inittype == INIT_RESTART .and. tm%iterfrom > dm%stat_istart) then
+    if(tm%inittype == INIT_RESTART .and. tm%iterfrom > dm%stat_istart .and. dm%visu_idim /= Ivisu_5) then
       if(dm%stat_level > ISTATL0) then
         call run_stats_loops1 (STATS_READ, tm%tavg_h,    't_avg_h',    iter, dm)
         call run_stats_loops1 (STATS_READ, tm%tavg_T,    't_avg_T',    iter, dm)
@@ -944,6 +946,7 @@ contains
     use io_tools_mod
     use parameters_constant_mod
     use udf_type_mod
+    use visualisation_mesh_mod, only: Ivisu_5
     implicit none
     type(t_domain), intent(in) :: dm
     type(t_mhd), intent(inout) :: mh
@@ -976,7 +979,7 @@ contains
       mh%tavg_jj = ZERO
     end if
     !
-    if(mh%iterfrom > dm%stat_istart) then
+    if(mh%iterfrom > dm%stat_istart .and. dm%visu_idim /= Ivisu_5) then
       if(dm%stat_level > ISTATL0) then
         call run_stats_loops1(STATS_READ, mh%tavg_e,  't_avg_e',  iter, dm)
         call run_stats_loops3(STATS_READ, mh%tavg_j,  't_avg_j',  iter, dm)
@@ -1295,6 +1298,7 @@ contains
     use io_tools_mod
     use typeconvert_mod
     use udf_type_mod
+    use visualisation_mesh_mod, only: Ivisu_5
     implicit none
     type(t_domain), intent(in) :: dm
     type(t_flow),   intent(inout) :: fl
@@ -1303,9 +1307,10 @@ contains
 
     ! here is not only a repeat of those in io_visualisation
     ! because they have different written freqence and to be used for restart as well.
-    if(nrank == 0) call Print_debug_inline_msg("Writing flow statistics ...")
     iter = fl%iteration
     if(iter < dm%stat_istart) return
+    if(dm%visu_idim == Ivisu_5) return
+    if(nrank == 0) call Print_debug_inline_msg("Writing flow statistics ...")
     ! shared parameters
     if(dm%stat_level > ISTATL0) then
       call run_stats_loops1 (STATS_WRITE, fl%tavg_pr,  't_avg_pr',   iter, dm)
@@ -1353,16 +1358,17 @@ contains
   subroutine write_stats_thermo(tm, dm)
     use io_tools_mod
     use udf_type_mod
+    use visualisation_mesh_mod, only: Ivisu_5
     implicit none
     type(t_domain), intent(in) :: dm
     type(t_thermo), intent(inout) :: tm
     integer :: iter
     !
     if(.not. dm%is_thermo) return
-    if(nrank == 0) call Print_debug_inline_msg("Writing thermo statistics ...")
-    !
     iter = tm%iteration
     if(iter < dm%stat_istart) return
+    if(dm%visu_idim == Ivisu_5) return
+    if(nrank == 0) call Print_debug_inline_msg("Writing thermo statistics ...")
     ! todo: add bc. visualisation
     if(dm%stat_level > ISTATL0) then
       call run_stats_loops1 (STATS_WRITE, tm%tavg_h,    't_avg_h',    iter, dm)
@@ -1381,15 +1387,17 @@ contains
   subroutine write_stats_mhd(mh, dm)
     use io_tools_mod
     use udf_type_mod
+    use visualisation_mesh_mod, only: Ivisu_5
     implicit none
     type(t_domain), intent(in) :: dm
     type(t_mhd), intent(inout) :: mh
     integer :: iter
     !
     if(.not. dm%is_mhd) return
-    if(nrank == 0) call Print_debug_inline_msg("Writing mhd statistics ...")
     iter = mh%iteration
     if(iter < dm%stat_istart) return
+    if(dm%visu_idim == Ivisu_5) return
+    if(nrank == 0) call Print_debug_inline_msg("Writing mhd statistics ...")
     if(dm%stat_level > ISTATL0) then
     call run_stats_loops1(STATS_WRITE, mh%tavg_e,  't_avg_e',  iter, dm)
     call run_stats_loops3(STATS_WRITE, mh%tavg_j,  't_avg_j',  iter, dm)
@@ -1408,6 +1416,7 @@ contains
     use typeconvert_mod
     use udf_type_mod
     use visualisation_field_mod
+    use visualisation_mesh_mod, only: Ivisu_4, Ivisu_5
     implicit none
     type(t_domain), intent(in) :: dm
     type(t_flow),   intent(inout) :: fl
@@ -1415,11 +1424,12 @@ contains
     integer :: iter, i, j, k, s, l, n, ij, sl
     character(64) :: visuname
     !
+    iter = fl%iteration
+    if(iter < dm%stat_istart) return
 !----------------------------------------------------------------------------------------------------------
 ! write time averaged 3d data
 !----------------------------------------------------------------------------------------------------------
-    iter = fl%iteration
-    if(iter < dm%stat_istart) return
+    if (dm%visu_idim /= Ivisu_4 .and. dm%visu_idim /= Ivisu_5) then
     visuname = 't_avg_flow'
     ! write xdmf header
     call write_visu_file_begin(dm, visuname, iter)
@@ -1462,6 +1472,7 @@ contains
     end if
     ! write xdmf footer
     call write_visu_file_end(dm, visuname, iter)
+    end if
 !----------------------------------------------------------------------------------------------------------
 ! write time averaged and space averaged 3d data (stored 2d or 1d data)
 !----------------------------------------------------------------------------------------------------------
@@ -1521,16 +1532,19 @@ contains
     use precision_mod
     use udf_type_mod
     use visualisation_field_mod
+    use visualisation_mesh_mod, only: Ivisu_4, Ivisu_5
     implicit none
     type(t_domain), intent(in) :: dm
     type(t_thermo), intent(inout) :: tm
     integer :: iter
     character(64) :: visuname
+    !
+    iter = tm%iteration
+    if(iter < dm%stat_istart) return
 !----------------------------------------------------------------------------------------------------------
 ! write time averaged 3d data
 !----------------------------------------------------------------------------------------------------------
-    iter = tm%iteration
-    if(iter < dm%stat_istart) return
+    if (dm%visu_idim /= Ivisu_4 .and. dm%visu_idim /= Ivisu_5) then
     visuname = 't_avg_thermo'
     ! write xdmf header
     if(nrank == 0) &
@@ -1547,6 +1561,7 @@ contains
     ! write xdmf footer
     if(nrank == 0) &
     call write_visu_file_end(dm, visuname, iter)
+    end if
 !----------------------------------------------------------------------------------------------------------
 ! write time averaged and space averaged 3d data (stored 2d or 1d data)
 !----------------------------------------------------------------------------------------------------------
@@ -1576,16 +1591,19 @@ contains
     use precision_mod
     use udf_type_mod
     use visualisation_field_mod
+    use visualisation_mesh_mod, only: Ivisu_4, Ivisu_5
     implicit none
     type(t_domain), intent(in) :: dm
     type(t_mhd), intent(inout) :: mh
     integer :: iter
     character(64) :: visuname
+    !
+    iter = mh%iteration
+    if(iter < dm%stat_istart) return
 !----------------------------------------------------------------------------------------------------------
 ! write time averaged 3d data
 !----------------------------------------------------------------------------------------------------------
-    iter = mh%iteration
-    if(iter < dm%stat_istart) return
+    if (dm%visu_idim /= Ivisu_4 .and. dm%visu_idim /= Ivisu_5) then
     visuname = 't_avg_mhd'
     ! write xdmf header
     if(nrank == 0) &
@@ -1602,6 +1620,7 @@ contains
     ! write xdmf footer
     if(nrank == 0) &
     call write_visu_file_end(dm, visuname, iter)
+    end if
 !----------------------------------------------------------------------------------------------------------
 ! write time averaged and space averaged 3d data (stored 2d or 1d data)
 !----------------------------------------------------------------------------------------------------------
