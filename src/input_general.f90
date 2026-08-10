@@ -62,6 +62,7 @@ module input_general_mod
   private :: get_name_fluid
   private :: get_name_fft
   private :: get_name_mstret
+  private :: get_name_LES_model
 contains
 !==========================================================================================================
   function get_name_case(icase) result(str)
@@ -279,6 +280,23 @@ contains
     return
   end function
 !==========================================================================================================
+  function get_name_LES_model(LES_model) result(str)
+    integer, intent(in) :: LES_model
+    character(72) :: str
+
+    select case(LES_model)
+    case ( ILES_NONE )
+      str = 'No LES model; DNS'
+    case ( ILES_WALE )
+      str = 'WALE'
+    case default
+      call Print_error_msg('The required LES model is not supported.')
+    end select
+    str = ' '//trim(adjustl(str))
+
+    return
+  end function
+!==========================================================================================================
 !> Reading the input parameters from the given file.
 !! Scope:  mpi    called-freq    xdomain
 !!         all    once           all
@@ -314,6 +332,7 @@ contains
 
     character(len = 80) :: secname
     character(len = 80) :: varname
+    character(len = 80) :: varvalue
     integer  :: itmp
     real(WP) :: rtmp, diff, best_diff
     real(WP), allocatable :: rtmpx(:)
@@ -390,6 +409,7 @@ contains
         domain(:)%is_thermo = .false.
         domain(:)%icht = 0
         domain(:)%is_mhd = .false.
+        domain(:)%LES_model = ILES_NONE
 
         do i = 1, nxdomain
           domain(i)%idom = i
@@ -863,6 +883,36 @@ contains
           end do
         else if(nrank == 0) then
          call Print_note_msg(' MHD is not considered. ')
+        end if
+      !----------------------------------------------------------------------------------------------------------
+      ! [les]
+      !----------------------------------------------------------------------------------------------------------
+      else if ( secname(1:slen) == '[les]' ) then
+        read(inputUnit, *, iostat = ioerr) varname, varvalue
+        select case(trim(adjustl(varvalue)))
+        case('0', 'DNS', 'dns', 'NONE', 'none', 'NO', 'no')
+          domain(:)%LES_model = ILES_NONE
+        case('1', 'WALE', 'wale')
+          domain(:)%LES_model = ILES_WALE
+        case default
+          itmp = int_from_string(trim(varvalue), ioerr)
+          if(ioerr /= 0) call Print_error_msg('The required LES model is not supported.')
+          domain(:)%LES_model = itmp
+        end select
+        if(domain(1)%LES_model /= ILES_NONE .and. nrank == 0) then
+          do i = 1, nxdomain
+            write (*, wrtfmt2s) 'LES model:', get_name_LES_model(domain(i)%LES_model)
+          end do
+        else if(domain(1)%LES_model /= ILES_NONE) then
+          do i = 1, nxdomain
+            select case(domain(i)%LES_model)
+            case(ILES_WALE)
+            case default
+              call Print_error_msg('The required LES model is not supported.')
+            end select
+          end do
+        else if(nrank == 0) then
+          call Print_note_msg(' LES is not enabled; DNS mode. ')
         end if
       !----------------------------------------------------------------------------------------------------------
       ! [simcontrol]

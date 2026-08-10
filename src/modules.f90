@@ -269,6 +269,11 @@ module parameters_constant_mod
   integer, parameter :: IVIS_EXPLICIT   = 1, &
                         IVIS_SEMIMPLT   = 2
 !----------------------------------------------------------------------------------------------------------
+! LES model
+!----------------------------------------------------------------------------------------------------------
+  integer, parameter :: ILES_NONE = 0, &
+                        ILES_WALE = 1
+!----------------------------------------------------------------------------------------------------------
 ! driven force in periodic flow
 !----------------------------------------------------------------------------------------------------------
   integer, parameter :: IDRVF_NO         = 0, &
@@ -492,6 +497,7 @@ module udf_type_mod
     integer :: icase                 ! case id
     integer :: icoordinate           ! coordinate type
     integer :: ifft_lib
+    integer :: LES_model
     integer :: icht
     integer :: iTimeScheme
     integer :: iviscous
@@ -705,6 +711,7 @@ module udf_type_mod
     real(WP), allocatable :: dDens(:, :, :)
     real(WP), allocatable :: drhodt(:, :, :)
     real(WP), allocatable :: mVisc(:, :, :)
+    real(WP), allocatable :: tVisc(:, :, :)
     real(WP), allocatable :: dDens0(:, :, :)
     real(WP), allocatable :: mVisc0(:, :, :)
 

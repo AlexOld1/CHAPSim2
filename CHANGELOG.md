@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased - 2026-04-27
+## Unreleased - 2026-05-29
 
 ### Added
 
+- Added LES model selection through integer `LES_model`, with `ILES_NONE` for
+  DNS/default operation and `ILES_WALE` for the WALE LES model.
+- Added the WALE LES implementation and integrated it into the momentum solver
+  for both isothermal and thermal-flow viscosity handling.
 - Added a unified pipe-axis halo and centre reconstruction routine,
   `axis_mirror_fbcy`, replacing the older even/odd-only mirroring routines.
 - Added axis reconstruction modes for regular cylindrical centreline behaviour:
@@ -19,6 +23,12 @@
 
 ### Changed
 
+- Updated LES turbulent viscosity handling so `tVisc` stores turbulent dynamic
+  viscosity and combines consistently with molecular dynamic viscosity in the
+  effective momentum viscosity.
+- Modernised the LES module structure by removing global scratch arrays,
+  using local working fields, adding explicit interfaces/imports, and documenting
+  the WALE helper routines.
 - Reworked pipe-centre treatment for cylindrical flows to enforce single-valued
   scalar quantities and regular first/second azimuthal-mode behaviour at the
   axis.
@@ -39,6 +49,10 @@
 
 ### Fixed
 
+- Fixed the WALE tensor invariant and eddy-viscosity denominator formulation,
+  including zero-denominator protection.
+- Fixed inlet database reads for short smoke-test runs so an empty read period
+  does not lead to `mod(..., 0)` when smoke iterations end before `ndbstart`.
 - Fixed thermal restart handling so restart cases do not require the inlet
   thermal boundary condition checks that apply only to fresh initialisation.
 - Fixed statistics restart/read handling by allowing statistics arrays to be
