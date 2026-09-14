@@ -646,7 +646,6 @@ contains
     use solver_tools_mod
     use statistics_mod
     use udf_type_mod
-    use visualisation_field_mod
     use wrt_debug_field_mod
     use wtformat_mod
     implicit none
@@ -736,8 +735,7 @@ contains
     if(dm%icase == ICASE_PIPE) call update_fbcy_cc_flow_halo(fl, dm)
 
     call Check_element_mass_conservation(fl, dm, 0, opt_str='initial')
-    if(.not. is_IO_off) call write_visu_flow(fl, dm, 'init')
-
+    
     if(nrank == 0) call Print_debug_end_msg()
 
     return
@@ -756,7 +754,6 @@ contains
     use statistics_mod
     use thermo_info_mod
     use udf_type_mod
-    use visualisation_field_mod
     implicit none
 
     type(t_domain), intent(inout) :: dm
@@ -795,11 +792,6 @@ contains
     fl%dDens0(:, :, :) = fl%dDens(:, :, :)
     if(nrank == 0) call Print_debug_mid_msg("update_fbcy_cc_thermo_halo ...")
     if (dm%icase == ICASE_PIPE) call update_fbcy_cc_thermo_halo(tm, dm)
-
-    if(.not. is_IO_off) then
-      if(nrank == 0) call Print_debug_mid_msg("write_visu_thermo ...")
-      call write_visu_thermo(tm, fl, dm, 'init')
-    end if
 
     if(nrank == 0) call Print_debug_end_msg()
     return
