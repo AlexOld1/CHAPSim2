@@ -2291,12 +2291,12 @@ contains
     call ensure_xinlet_database_mesh(dm, iter)
 
     if(.not. dm%xinlet_database_interp_yz) then
-      call read_one_3d_array(dm%fbcx_qx_inl1, 'outlet1_qx', dm%idom, iter, dm%dxcc)
-      call read_one_3d_array(dm%fbcx_qx_inl2, 'outlet2_qx', dm%idom, iter, dm%dxcc)
-      call read_one_3d_array(dm%fbcx_qy_inl1, 'outlet1_qy', dm%idom, iter, dm%dxpc)
-      call read_one_3d_array(dm%fbcx_qy_inl2, 'outlet2_qy', dm%idom, iter, dm%dxpc)
-      call read_one_3d_array(dm%fbcx_qz_inl1, 'outlet1_qz', dm%idom, iter, dm%dxcp)
-      call read_one_3d_array(dm%fbcx_qz_inl2, 'outlet2_qz', dm%idom, iter, dm%dxcp)
+      call read_one_3d_dtbs_array(dm%fbcx_qx_inl1, 'outlet1_qx', dm%idom, iter, dm%dxcc)
+      call read_one_3d_dtbs_array(dm%fbcx_qx_inl2, 'outlet2_qx', dm%idom, iter, dm%dxcc)
+      call read_one_3d_dtbs_array(dm%fbcx_qy_inl1, 'outlet1_qy', dm%idom, iter, dm%dxpc)
+      call read_one_3d_dtbs_array(dm%fbcx_qy_inl2, 'outlet2_qy', dm%idom, iter, dm%dxpc)
+      call read_one_3d_dtbs_array(dm%fbcx_qz_inl1, 'outlet1_qz', dm%idom, iter, dm%dxcp)
+      call read_one_3d_dtbs_array(dm%fbcx_qz_inl2, 'outlet2_qz', dm%idom, iter, dm%dxcp)
       return
     end if
 
