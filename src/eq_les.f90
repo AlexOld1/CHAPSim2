@@ -5,7 +5,7 @@ module les_mod
   use udf_type_mod, only: t_domain, t_flow
   implicit none
   !
-  private :: calculate_velocity_gradient, calculate_strain_rate_tensor
+  private :: calculate_strain_rate_tensor
   private :: calculate_strain_rate_magnitude_square, calculate_wale_tensor
   private :: calculate_wale_tensor_magnitude_square, calculate_eddy_viscosity_wale
   !
@@ -13,104 +13,6 @@ module les_mod
   !public :: calculate_les_smag
 
 contains
-!==========================================================================================================
-  !> Calculate velocity-gradient tensor du_i/dx_j at cell centres.
-  !> - fl: flow variables containing staggered velocity components.
-  !> - dm: domain/decomposition and boundary-condition metadata.
-  !> - velocity_gradient: output tensor with component order (i velocity, j derivative).
-  subroutine calculate_velocity_gradient(fl, dm, velocity_gradient)
-    use boundary_conditions_mod, only: AXIS_RECON_M0_M2, AXIS_RECON_M1, axis_mirror_fbcy
-    use parameters_constant_mod, only: ICASE_PIPE, IPENCIL, MAXP
-    use transpose_extended_mod, only: transpose_from_z_pencil, transpose_to_z_pencil
-    implicit none
-    type(t_flow),   intent(in) :: fl
-    type(t_domain), intent(in) :: dm
-    real(WP),       intent(out) :: velocity_gradient(:, :, :, :, :)
-
-    real(WP), dimension( dm%dccc%xsz(1), dm%dccc%xsz(2), dm%dccc%xsz(3) ) :: accc_xpencil
-    real(WP), dimension( dm%dpcc%xsz(1), dm%dpcc%xsz(2), dm%dpcc%xsz(3) ) :: apcc_xpencil
-    real(WP), dimension( dm%dppc%xsz(1), dm%dppc%xsz(2), dm%dppc%xsz(3) ) :: appc_xpencil
-    real(WP), dimension( dm%dcpc%xsz(1), dm%dcpc%xsz(2), dm%dcpc%xsz(3) ) :: acpc_xpencil
-    real(WP), dimension( dm%dccp%xsz(1), dm%dccp%xsz(2), dm%dccp%xsz(3) ) :: accp_xpencil
-    real(WP), dimension( dm%dpcp%xsz(1), dm%dpcp%xsz(2), dm%dpcp%xsz(3) ) :: apcp_xpencil
-    real(WP), dimension( dm%dpcc%ysz(1), dm%dpcc%ysz(2), dm%dpcc%ysz(3) ) :: apcc_ypencil
-    real(WP), dimension( dm%dppc%ysz(1), dm%dppc%ysz(2), dm%dppc%ysz(3) ) :: appc_ypencil
-    real(WP), dimension( dm%dccc%ysz(1), dm%dccc%ysz(2), dm%dccc%ysz(3) ) :: accc_ypencil
-    real(WP), dimension( dm%dcpc%ysz(1), dm%dcpc%ysz(2), dm%dcpc%ysz(3) ) :: acpc_ypencil
-    real(WP), dimension( dm%dccp%ysz(1), dm%dccp%ysz(2), dm%dccp%ysz(3) ) :: accp_ypencil
-    real(WP), dimension( dm%dcpp%ysz(1), dm%dcpp%ysz(2), dm%dcpp%ysz(3) ) :: acpp_ypencil
-    real(WP), dimension( dm%dpcc%zsz(1), dm%dpcc%zsz(2), dm%dpcc%zsz(3) ) :: apcc_zpencil
-    real(WP), dimension( dm%dpcp%zsz(1), dm%dpcp%zsz(2), dm%dpcp%zsz(3) ) :: apcp_zpencil
-    real(WP), dimension( dm%dccc%zsz(1), dm%dccc%zsz(2), dm%dccc%zsz(3) ) :: accc_zpencil
-    real(WP), dimension( dm%dccp%zsz(1), dm%dccp%zsz(2), dm%dccp%zsz(3) ) :: accp_zpencil
-    real(WP), dimension( dm%dcpc%zsz(1), dm%dcpc%zsz(2), dm%dcpc%zsz(3) ) :: acpc_zpencil
-    real(WP), dimension( dm%dcpp%zsz(1), dm%dcpp%zsz(2), dm%dcpp%zsz(3) ) :: acpp_zpencil
-    real(WP), dimension( dm%dppc%ysz(1), 4, dm%dppc%ysz(3) ) :: fbcy_p4c
-    real(WP), dimension( dm%dcpp%ysz(1), 4, dm%dcpp%ysz(3) ) :: fbcy_c4p
-
-    ! du/dx, du/dy, du/dz
-    call Get_x_1der_P2C_3D(fl%qx, accc_xpencil, dm, dm%iAccuracy, dm%ibcx_qx, dm%fbcx_qx)
-    velocity_gradient(:, :, :, 1, 1) = accc_xpencil(:, :, :)
-    call transpose_x_to_y(fl%qx, apcc_ypencil, dm%dpcc)
-    call Get_y_1der_C2P_3D(apcc_ypencil, appc_ypencil, dm, dm%iAccuracy, dm%ibcy_qx, dm%fbcy_qx)
-    fbcy_p4c = MAXP
-    if(dm%icase == ICASE_PIPE) then
-    call axis_mirror_fbcy(appc_ypencil, IPENCIL(2), fbcy_p4c, dm%knc_sym, dm%dppc, is_odd = .true., &
-                            axis_mode = AXIS_RECON_M1, assign_axis_to_var = .true., nr = 0, opt_dz = dm%h(3))
-    end if
-    call Get_y_midp_P2C_3D(appc_ypencil, apcc_ypencil, dm, dm%iAccuracy, dm%ibcy_qx)
-    call transpose_y_to_x(apcc_ypencil, apcc_xpencil, dm%dpcc)
-    call Get_x_midp_P2C_3D(apcc_xpencil, accc_xpencil, dm, dm%iAccuracy, dm%ibcx_qx)
-    velocity_gradient(:, :, :, 1, 2) = accc_xpencil(:, :, :)
-    call transpose_to_z_pencil(fl%qx, apcc_zpencil, dm%dpcc, IPENCIL(1))
-    call Get_z_1der_C2P_3D(apcc_zpencil, apcp_zpencil, dm, dm%iAccuracy, dm%ibcz_qx, dm%fbcz_qx)
-    call Get_z_midp_P2C_3D(apcp_zpencil, apcc_zpencil, dm, dm%iAccuracy, dm%ibcz_qx)
-    call transpose_from_z_pencil(apcc_zpencil, apcc_xpencil, dm%dccc, IPENCIL(1))
-    call Get_x_midp_P2C_3D(apcc_xpencil, accc_xpencil, dm, dm%iAccuracy, dm%ibcx_qx)
-    velocity_gradient(:, :, :, 1, 3) = accc_xpencil(:, :, :)
-    ! dv/dx, dv/dy, dv/dz
-    call Get_x_1der_C2P_3D(fl%qy, appc_xpencil, dm, dm%iAccuracy, dm%ibcx_qy, dm%fbcx_qy)
-    call Get_x_midp_P2C_3D(appc_xpencil, acpc_xpencil, dm, dm%iAccuracy, dm%ibcx_qy)
-    call transpose_x_to_y(acpc_xpencil, acpc_ypencil, dm%dcpc)
-    call Get_y_midp_P2C_3D(acpc_ypencil, accc_ypencil, dm, dm%iAccuracy, dm%ibcy_qy)
-    call transpose_y_to_x(accc_ypencil, accc_xpencil, dm%dccc)
-    velocity_gradient(:, :, :, 2, 1) = accc_xpencil(:, :, :)
-    call transpose_x_to_y(fl%qy, acpc_ypencil, dm%dcpc)
-    call Get_y_1der_P2C_3D(acpc_ypencil, accc_ypencil, dm, dm%iAccuracy, dm%ibcy_qy, dm%fbcy_qy)
-    call transpose_y_to_x(accc_ypencil, accc_xpencil, dm%dccc)
-    velocity_gradient(:, :, :, 2, 2) = accc_xpencil(:, :, :)
-    call transpose_to_z_pencil(fl%qy, acpc_zpencil, dm%dcpc, IPENCIL(1))
-    call Get_z_1der_C2P_3D(acpc_zpencil, acpp_zpencil, dm, dm%iAccuracy, dm%ibcz_qy, dm%fbcz_qy)
-    call Get_z_midp_P2C_3D(acpp_zpencil, acpc_zpencil, dm, dm%iAccuracy, dm%ibcz_qy)
-    call transpose_z_to_y(acpc_zpencil, acpc_ypencil, dm%dcpc)
-    call Get_y_midp_P2C_3D(acpc_ypencil, accc_ypencil, dm, dm%iAccuracy, dm%ibcy_qy)
-    call transpose_y_to_x(accc_ypencil, accc_xpencil, dm%dccc)
-    velocity_gradient(:, :, :, 2, 3) = accc_xpencil(:, :, :)
-    ! dw/dx, dw/dy, dw/dz
-    call Get_x_1der_C2P_3D(fl%qz, apcp_xpencil, dm, dm%iAccuracy, dm%ibcx_qz, dm%fbcx_qz)
-    call Get_x_midp_P2C_3D(apcp_xpencil, accp_xpencil, dm, dm%iAccuracy, dm%ibcx_qz)
-    call transpose_to_z_pencil(accp_xpencil, accp_zpencil, dm%dccp, IPENCIL(1))
-    call Get_z_midp_P2C_3D(accp_zpencil, accc_zpencil, dm, dm%iAccuracy, dm%ibcz_qz)
-    call transpose_from_z_pencil(accc_zpencil, accc_xpencil, dm%dccc, IPENCIL(1))
-    velocity_gradient(:, :, :, 3, 1) = accc_xpencil(:, :, :)
-    call transpose_x_to_y(fl%qz, accp_ypencil, dm%dccp)
-    call Get_y_1der_C2P_3D(accp_ypencil, acpp_ypencil, dm, dm%iAccuracy, dm%ibcy_qz, dm%fbcy_qz)
-    fbcy_c4p = MAXP
-    if(dm%icase == ICASE_PIPE) then
-    call axis_mirror_fbcy(acpp_ypencil, IPENCIL(2), fbcy_c4p, dm%knc_sym, dm%dcpp, is_odd = .false., &
-                            axis_mode = AXIS_RECON_M0_M2, assign_axis_to_var = .true., nr = 0, opt_dz = dm%h(3))
-    end if
-    call Get_y_midp_P2C_3D(acpp_ypencil, accp_ypencil, dm, dm%iAccuracy, dm%ibcy_qz)
-    call transpose_to_z_pencil(accp_ypencil, accp_zpencil, dm%dccp, IPENCIL(2))
-    call Get_z_midp_P2C_3D(accp_zpencil, accc_zpencil, dm, dm%iAccuracy, dm%ibcz_qz)
-    call transpose_from_z_pencil(accc_zpencil, accc_xpencil, dm%dccc, IPENCIL(1))
-    velocity_gradient(:, :, :, 3, 2) = accc_xpencil(:, :, :)
-    call transpose_to_z_pencil(fl%qz, accp_zpencil, dm%dccp, IPENCIL(1))
-    call Get_z_1der_P2C_3D(accp_zpencil, accc_zpencil, dm, dm%iAccuracy, dm%ibcz_qz, dm%fbcz_qz)
-    call transpose_from_z_pencil(accc_zpencil, accc_xpencil, dm%dccc, IPENCIL(1))
-    velocity_gradient(:, :, :, 3, 3) = accc_xpencil(:, :, :)
-    return
-  end subroutine calculate_velocity_gradient
 !==========================================================================================================
   !> Form the resolved strain-rate tensor S_ij = 0.5*(du_i/dx_j + du_j/dx_i).
   !> - velocity_gradient: cell-centred velocity-gradient tensor.
@@ -208,34 +110,63 @@ contains
   !> - wale_tensor_mag2: S^d_ij S^d_ij field.
   !> - eddy_visc_kinematic: output nondimensional kinematic eddy viscosity.
   subroutine calculate_eddy_viscosity_wale(dm, strain_rate_mag2, wale_tensor_mag2, eddy_visc_kinematic)
-    use parameters_constant_mod, only: ZERO
+    use parameters_constant_mod, only: ZERO, ICYLINDRICAL
     implicit none
     type(t_domain), intent(in) :: dm
     real(WP),       intent(in)  :: strain_rate_mag2(:, :, :)
     real(WP),       intent(in)  :: wale_tensor_mag2(:, :, :)
     real(WP),       intent(out) :: eddy_visc_kinematic(:, :, :)
-    real(WP) :: Cw, delta
+    real(WP) :: Cw, dx, dy, dz
+    real(WP), dimension(size(eddy_visc_kinematic,2)) :: delta
     real(WP), dimension(size(eddy_visc_kinematic,1), size(eddy_visc_kinematic,2), size(eddy_visc_kinematic,3)) :: denominator
+    integer :: j, jj
 
-    Cw    = 0.5_WP
-    delta = (dm%h(1) * dm%h(2) * dm%h(3))**(1.0_WP/3.0_WP)
+    Cw = 0.5_WP
+!----------------------------------------------------------------------------------------------------------
+!   Filter width = cube root of the local *physical* cell volume, the same measure geometry.f90 uses to
+!   build dm%vol: dy is the stretched wall-normal spacing h(2)/yMappingcc, and in cylindrical coordinates
+!   the azimuthal arc length is r*dtheta. The computational spacings h(1:3) alone misjudge delta by a
+!   factor of ~12 across a stretched channel and overestimate nu_t by ~8x in the first cell off a pipe axis.
+!   Limitation: this is an isotropic measure. Near a pipe axis the cell aspect ratio reaches O(50), where
+!   an anisotropy correction (e.g. Scotti et al. 1993) would be more appropriate. Not implemented.
+!----------------------------------------------------------------------------------------------------------
+    dx = dm%h(1)
+    do j = 1, size(eddy_visc_kinematic, 2)
+      jj = dm%dccc%xst(2) + j - 1
+      dy = dm%h(2)
+      if(dm%is_stretching(2)) dy = dm%h(2) / dm%yMappingcc(jj, 1)
+      dz = dm%h(3)
+      if(dm%icoordinate == ICYLINDRICAL) dz = dm%h(3) * dm%rc(jj)
+      delta(j) = (dx * dy * dz)**(1.0_WP/3.0_WP)
+    end do
 
     denominator = (strain_rate_mag2)**(5.0_WP/2.0_WP) + (wale_tensor_mag2)**(5.0_WP/4.0_WP)
-    where (denominator > ZERO)
-        eddy_visc_kinematic = (Cw * delta)**2 * (wale_tensor_mag2)**(3.0_WP/2.0_WP) / denominator
-    elsewhere
-        eddy_visc_kinematic = ZERO
-    end where
+    do j = 1, size(eddy_visc_kinematic, 2)
+      where (denominator(:, j, :) > ZERO)
+          eddy_visc_kinematic(:, j, :) = (Cw * delta(j))**2 * &
+                                         (wale_tensor_mag2(:, j, :))**(3.0_WP/2.0_WP) / denominator(:, j, :)
+      elsewhere
+          eddy_visc_kinematic(:, j, :) = ZERO
+      end where
+    end do
     return
   end subroutine calculate_eddy_viscosity_wale
 !==========================================================================================================
   !> Calculate turbulent dynamic viscosity using the WALE LES model.
   !> - fl: flow state; fl%tVisc is overwritten with turbulent dynamic viscosity.
   !> - dm: domain/decomposition and boundary-condition metadata.
-  subroutine calculate_les_wale(fl, dm)
+  !> - opt_max_strain_rate_mag2: optional global max of S_ij S_ij. The reduction is a
+  !>   collective, so it is only performed when the caller asks for it - the timestep
+  !>   loop does not, and pays nothing.
+  subroutine calculate_les_wale(fl, dm, opt_max_strain_rate_mag2)
+    use find_max_min_ave_mod, only: Find_max_min_3d
+    use flow_gradient_mod, only: get_velocity_and_gradient_ccc
+    use parameters_constant_mod, only: ZERO
     implicit none
     type(t_flow),   intent(inout) :: fl
     type(t_domain), intent(in)    :: dm
+    real(WP), intent(out), optional :: opt_max_strain_rate_mag2
+    real(WP) :: maxmin_strain(2)
     real(WP), dimension(dm%dccc%xsz(1), dm%dccc%xsz(2), dm%dccc%xsz(3), 3, 3) :: velocity_gradient
     real(WP), dimension(dm%dccc%xsz(1), dm%dccc%xsz(2), dm%dccc%xsz(3), 3, 3) :: strain_rate
     real(WP), dimension(dm%dccc%xsz(1), dm%dccc%xsz(2), dm%dccc%xsz(3), 3, 3) :: wale_tensor
@@ -243,9 +174,19 @@ contains
     real(WP), dimension(dm%dccc%xsz(1), dm%dccc%xsz(2), dm%dccc%xsz(3)) :: wale_tensor_mag2
     real(WP), dimension(dm%dccc%xsz(1), dm%dccc%xsz(2), dm%dccc%xsz(3)) :: eddy_visc_kinematic
 
-    call calculate_velocity_gradient(fl, dm, velocity_gradient)
+    ! physical velocity-gradient tensor; in cylindrical coordinates this is
+    ! the (x, r, theta) tensor including the 1/r and u/r metric terms, not the
+    ! derivatives of the stored variables qy = r*u_r and qz = u_theta.
+    call get_velocity_and_gradient_ccc(fl, dm, velocity_gradient)
     call calculate_strain_rate_tensor(velocity_gradient, strain_rate)
     call calculate_strain_rate_magnitude_square(strain_rate, strain_rate_mag2)
+    if(present(opt_max_strain_rate_mag2)) then
+      ! opt_work(2) receives the allreduced maximum; opt_name is withheld so the
+      ! helper's ‰-drift line is not printed against a meaningless previous value.
+      maxmin_strain = ZERO
+      call Find_max_min_3d(strain_rate_mag2, opt_calc = 'MAXI', opt_work = maxmin_strain)
+      opt_max_strain_rate_mag2 = maxmin_strain(2)
+    end if
     call calculate_wale_tensor(velocity_gradient, wale_tensor)
     call calculate_wale_tensor_magnitude_square(wale_tensor, wale_tensor_mag2)
     call calculate_eddy_viscosity_wale(dm, strain_rate_mag2, wale_tensor_mag2, eddy_visc_kinematic)
