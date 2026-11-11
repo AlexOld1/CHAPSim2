@@ -1682,7 +1682,7 @@ contains
     return
   end subroutine
 !==============================================================================
-  subroutine run_stats_loops9(mode, acccn_tavg, field_name, iter, dm, opt_acccnn1, opt_accc0, opt_visnm, opt_nstat)
+  subroutine run_stats_loops9(mode, acccn_tavg, field_name, iter, dm, opt_acccnn1, opt_acccn1, opt_acccn2, opt_accc0, opt_visnm, opt_nstat)
     use typeconvert_mod
     use udf_type_mod
     implicit none
