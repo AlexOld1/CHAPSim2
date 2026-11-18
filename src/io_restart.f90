@@ -2366,6 +2366,19 @@ contains
     is_initial = .false.
     if(present(opt_is_initial)) is_initial = opt_is_initial
 
+    ! LOCAL PATCH: a legacy per-field thermal checkpoint has no gx/gy/gz or
+    ! m*_rhs0. Read q and pr only; initialise_flow_from_restart_q then rebuilds
+    ! g = rho*u from the (already restored) density and zeroes the momentum
+    ! RHS history, as the old restart did.
+    if(dm%is_thermo .and. dm%restart_data_layout_read /= RESTART_LAYOUT_BUNDLED) then
+      call generate_pathfile_name(data_flname, dm%idom, 'gx', dir_data, 'bin', fl%iterfrom)
+      if(.not. file_exists(trim(data_flname))) then
+        is_initial = .true.
+        if(nrank == 0) call Print_warning_msg('Legacy flow restart (no gx/gy/gz): '// &
+          'g is rebuilt from q and the current density; the continuation is NOT bit-exact.')
+      end if
+    end if
+
     if(dm%restart_data_layout_read == RESTART_LAYOUT_BUNDLED) then
       if(nrank == 0) call Print_debug_mid_msg("Restart input layout expects bundled flow restart files.")
       call read_flow_restart_bundle(fl, dm, opt_is_initial=is_initial)
@@ -2616,6 +2629,7 @@ contains
     logical  :: has_metadata
     real(WP), dimension(dm%d1cc%xsz(1), dm%d1cc%xsz(2), dm%d1cc%xsz(3)) :: fbcx_1cc
     logical  :: has_fbcx_dhat
+    real(WP), allocatable :: rhoh_read(:, :, :)
 
     if (.not. dm%is_thermo) return
     if(nrank == 0) call Print_debug_inline_msg("read instantaneous thermo data ...")
@@ -2645,12 +2659,28 @@ contains
         call Print_error_msg("The file "//trim(data_flname)//" does not exist. "//THERMO_LABEL_HINT)
       call read_one_3d_array(tm%rhoh,  'rhoh', dm%idom, tm%iteration, dm%dccc)
       call read_one_3d_array(tm%tTemp, 'temp', dm%idom, tm%iteration, dm%dccc)
-      call read_one_3d_array(tm%ene_rhs0, 'ene_rhs0', dm%idom, tm%iteration, dm%dccc)
-      call read_one_3d_array(fl%dDens, 'dens', dm%idom, tm%iteration, dm%dccc)
-      call read_one_3d_array(fl%mVisc, 'visc', dm%idom, tm%iteration, dm%dccc)
-      call read_one_3d_array(tm%hEnth, 'henth', dm%idom, tm%iteration, dm%dccc)
-      call read_one_3d_array(tm%kCond, 'kcond', dm%idom, tm%iteration, dm%dccc)
-      call read_one_3d_array(tm%eCond, 'econd', dm%idom, tm%iteration, dm%dccc)
+      ! LOCAL PATCH: ene_rhs0 not read (legacy checkpoints lack it); it stays at
+      ! its allocation value of zero. No effect for RK3 (tZeta(1) = 0); for AB2
+      ! the first step after restart has no energy RHS history.
+      ! call read_one_3d_array(tm%ene_rhs0, 'ene_rhs0', dm%idom, tm%iteration, dm%dccc)
+      call generate_pathfile_name(data_flname, dm%idom, 'dens', dir_data, 'bin', tm%iteration)
+      if(file_exists(trim(data_flname))) then
+        call read_one_3d_array(fl%dDens, 'dens', dm%idom, tm%iteration, dm%dccc)
+        call read_one_3d_array(fl%mVisc, 'visc', dm%idom, tm%iteration, dm%dccc)
+        call read_one_3d_array(tm%hEnth, 'henth', dm%idom, tm%iteration, dm%dccc)
+        call read_one_3d_array(tm%kCond, 'kcond', dm%idom, tm%iteration, dm%dccc)
+        call read_one_3d_array(tm%eCond, 'econd', dm%idom, tm%iteration, dm%dccc)
+      else
+        ! LOCAL PATCH: legacy checkpoint (rhoh, temp only). Rebuild rho, mu, h,
+        ! k and sigma_e from the stored temperature; rhoh is kept as read.
+        ! (the T-based refresh also overwrites rhoh, so restore the stored one)
+        allocate(rhoh_read, source = tm%rhoh)
+        call ftp_refresh_thermal_properties_from_T_undim_3Dtm(fl, tm, dm)
+        tm%rhoh = rhoh_read
+        deallocate(rhoh_read)
+        if(nrank == 0) call Print_warning_msg('Legacy thermal restart (rhoh, temp only): '// &
+          'properties rebuilt from temperature; the continuation is NOT bit-exact.')
+      end if
       if(is_bc_recovery) then
         call generate_pathfile_name(data_flname, dm%idom, 'dens_hat', dir_data, 'bin', tm%iteration)
         if(file_exists(trim(data_flname))) then
