@@ -2515,7 +2515,8 @@ contains
           domain(:)%ndbend = (domain(1)%ndbend - domain(1)%ndbstart + 1)/domain(1)%ndbfre * domain(1)%ndbfre + domain(1)%ndbstart - 1
           domain(i)%ndbbuf = 1
           if(domain(i)%ndbfre > 0) then
-            do ibuf = min(domain(i)%ndbfre, domain(i)%nc(1)), 1, -1
+            ! LOCAL PATCH: one file = ndbfre planes (legacy database layout); was min(ndbfre, nc(1))
+            do ibuf = domain(i)%ndbfre, 1, -1
               if(mod(domain(i)%ndbfre, ibuf) == 0) then
                 domain(i)%ndbbuf = ibuf
                 exit

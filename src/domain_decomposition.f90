@@ -69,7 +69,8 @@ contains
 
     if(dm%is_record_xoutlet .or. dm%is_read_xinlet) then
       dm%ndbbuf = 1
-      do ibuf = min(dm%ndbfre, dm%nc(1)), 1, -1
+      ! LOCAL PATCH: one file = ndbfre planes (legacy database layout); was min(ndbfre, nc(1))
+      do ibuf = dm%ndbfre, 1, -1
         if(mod(dm%ndbfre, ibuf) == 0) then
           dm%ndbbuf = ibuf
           exit
